@@ -36,7 +36,7 @@ export type FireworkMetrics = {
   phase: FireworkPhase;
 };
 
-type SparkKind = 'pixel' | 'dash' | 'glyph' | 'cluster';
+type SparkKind = 'pixel' | 'dash' | 'note' | 'star' | 'flower' | 'smile';
 
 type FireworkSlot = {
   particle: Particle;
@@ -60,7 +60,7 @@ export class FireworkSystem {
   readonly container = new Container();
   private readonly batches: Record<SparkKind, ParticleContainer<Particle>>;
   private readonly rings: Sprite[];
-  private readonly heroStars: Sprite[];
+  private readonly heroMotifs: Sprite[];
   private readonly slots: FireworkSlot[] = [];
   private readonly capacity: number;
   private nextPoolIndex = 0;
@@ -90,8 +90,10 @@ export class FireworkSystem {
     this.batches = {
       pixel: this.createBatch(textures.pixelDot),
       dash: this.createBatch(textures.pixelDash),
-      glyph: this.createBatch(textures.pixelGlyph),
-      cluster: this.createBatch(textures.pixelCluster),
+      note: this.createBatch(textures.pixelNote),
+      star: this.createBatch(textures.pixelStar),
+      flower: this.createBatch(textures.pixelFlower),
+      smile: this.createBatch(textures.pixelSmile),
     };
     this.rings = [0, 1, 2].map((index) => {
       const ring = new Sprite({
@@ -109,8 +111,15 @@ export class FireworkSystem {
       ring.blendMode = 'add';
       return ring;
     });
-    this.heroStars = [0, 1, 2, 3, 4].map((index) => {
-      const star = new Sprite({ texture: textures.pixelCluster, anchor: 0.5 });
+    const heroTextures = [
+      textures.pixelNote,
+      textures.pixelSmile,
+      textures.pixelFlower,
+      textures.pixelStar,
+      textures.pixelFlower,
+    ];
+    this.heroMotifs = heroTextures.map((texture, index) => {
+      const star = new Sprite({ texture, anchor: 0.5 });
       star.visible = false;
       star.alpha = 0;
       star.tint = [
@@ -123,43 +132,55 @@ export class FireworkSystem {
       star.blendMode = 'add';
       return star;
     });
-    this.container.addChild(...this.rings, ...this.heroStars);
+    this.container.addChild(...this.rings, ...this.heroMotifs);
     this.container.addChild(
       this.batches.pixel,
       this.batches.dash,
-      this.batches.glyph,
-      this.batches.cluster,
+      this.batches.note,
+      this.batches.star,
+      this.batches.flower,
+      this.batches.smile,
     );
 
     const dotEnd = Math.floor(this.capacity * 0.3);
-    const streakEnd = Math.floor(this.capacity * 0.52);
-    const starEnd = Math.floor(this.capacity * 0.68);
+    const streakEnd = Math.floor(this.capacity * 0.5);
+    const noteEnd = Math.floor(this.capacity * 0.62);
+    const starEnd = Math.floor(this.capacity * 0.76);
+    const flowerEnd = Math.floor(this.capacity * 0.92);
     for (let index = 0; index < this.capacity; index += 1) {
       const kind: SparkKind =
         index < dotEnd
           ? 'pixel'
           : index < streakEnd
             ? 'dash'
-            : index < starEnd
-              ? 'glyph'
-              : 'cluster';
+            : index < noteEnd
+              ? 'note'
+              : index < starEnd
+                ? 'star'
+                : index < flowerEnd
+                  ? 'flower'
+                  : 'smile';
       const scale =
         (kind === 'pixel'
           ? 0.36 + Math.random() * 0.34
           : kind === 'dash'
             ? 0.42 + Math.random() * 0.28
-            : kind === 'glyph'
-              ? 0.34 + Math.random() * 0.3
-              : 0.34 + Math.random() * 0.34) * CANDY_BLOOM_SCALE.firework;
+            : kind === 'smile'
+              ? 0.36 + Math.random() * 0.2
+              : 0.24 + Math.random() * 0.2) * CANDY_BLOOM_SCALE.firework;
       const particle = new Particle({
         texture:
           kind === 'pixel'
             ? textures.pixelDot
             : kind === 'dash'
               ? textures.pixelDash
-              : kind === 'glyph'
-                ? textures.pixelGlyph
-                : textures.pixelCluster,
+              : kind === 'note'
+                ? textures.pixelNote
+                : kind === 'star'
+                  ? textures.pixelStar
+                  : kind === 'flower'
+                    ? textures.pixelFlower
+                    : textures.pixelSmile,
         x: -100,
         y: -100,
         scaleX: scale,
@@ -236,7 +257,7 @@ export class FireworkSystem {
       ring.x = this.sequenceOriginX;
       ring.y = this.sequenceOriginY;
     }
-    for (const star of this.heroStars) {
+    for (const star of this.heroMotifs) {
       star.visible = false;
       star.alpha = 0;
     }
@@ -414,7 +435,7 @@ export class FireworkSystem {
         ring.alpha = 0;
         ring.visible = false;
       }
-      for (const star of this.heroStars) star.visible = false;
+      for (const star of this.heroMotifs) star.visible = false;
     }
   }
 
@@ -429,8 +450,8 @@ export class FireworkSystem {
       2,
       Math.round(baseBurstCount * QUALITY_PROFILES[this.quality].particleScale),
     );
-    for (let index = 0; index < this.heroStars.length; index += 1) {
-      const star = this.heroStars[index];
+    for (let index = 0; index < this.heroMotifs.length; index += 1) {
+      const star = this.heroMotifs[index];
       if (index >= burstCount) {
         star.visible = false;
         continue;
@@ -465,8 +486,9 @@ export class FireworkSystem {
         Math.min(height * 0.52, centerY - radiusY * (1.06 + centerLift)),
       );
       star.rotation = this.sequenceElapsed * (index % 2 ? 1.3 : -1.1);
+      const isHero = index === Math.floor(burstCount / 2);
       star.scale.set(
-        (0.46 + (index === Math.floor(burstCount / 2) ? 0.18 : 0)) *
+        (isHero ? 0.98 : 0.54 + (index % 2) * 0.1) *
           eased *
           CANDY_BLOOM_SCALE.firework,
       );
@@ -583,11 +605,11 @@ export class FireworkSystem {
         Math.cos(angle) * speed,
         Math.sin(angle) * speed,
         pickColor(LAUGH_PALETTE),
-        kind === 'cluster'
-          ? 1.35 + Math.random() * 0.65
+        kind === 'flower' || kind === 'smile'
+          ? 1.22 + Math.random() * 0.58
           : 0.78 + Math.random() * 0.58,
-        kind === 'cluster' ? 138 : 245,
-        kind === 'cluster' ? 0.88 : 0.74,
+        kind === 'flower' || kind === 'smile' ? 138 : 225,
+        kind === 'flower' || kind === 'smile' ? 0.88 : 0.74,
       );
     }
     for (let index = 0; index < 3; index += 1) {
@@ -640,7 +662,15 @@ export class FireworkSystem {
       const side = index % 2 === 0 ? -1 : 1;
       const angle = Math.random() * Math.PI * 2;
       const speed = 95 + Math.random() * 190;
-      const kind: SparkKind = Math.random() < 0.48 ? 'glyph' : 'cluster';
+      const motif = Math.random();
+      const kind: SparkKind =
+        motif < 0.28
+          ? 'note'
+          : motif < 0.58
+            ? 'star'
+            : motif < 0.87
+              ? 'flower'
+              : 'smile';
       this.spawnSpark(
         kind,
         centerX + side * radiusX * (0.65 + Math.random() * 0.45),
@@ -649,7 +679,7 @@ export class FireworkSystem {
         Math.sin(angle) * speed - 30,
         Math.random() < 0.34 ? CANDY_BLOOM.gold : pickColor(LAUGH_PALETTE),
         0.74 + Math.random() * 0.52,
-        kind === 'cluster' ? 150 : 225,
+        kind === 'flower' || kind === 'smile' ? 150 : 210,
         1.15,
       );
     }
@@ -657,10 +687,12 @@ export class FireworkSystem {
 
   private pickBurstKind(): SparkKind {
     const value = Math.random();
-    if (value < 0.44) return 'cluster';
-    if (value < 0.72) return 'pixel';
-    if (value < 0.9) return 'dash';
-    return 'glyph';
+    if (value < 0.4) return 'pixel';
+    if (value < 0.62) return 'dash';
+    if (value < 0.73) return 'note';
+    if (value < 0.84) return 'star';
+    if (value < 0.96) return 'flower';
+    return 'smile';
   }
 
   private spawnSpark(

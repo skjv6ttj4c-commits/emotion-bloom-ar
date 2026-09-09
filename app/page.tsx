@@ -714,8 +714,8 @@ export default function Home() {
             </span>
           </div>
           <p className="rain-help">
-            像素聚能环 → 方块矩阵主爆 → 分段字符拖尾 → 霓虹纸屑余韵 ·
-            头部可撞散 · 按 L 测试
+            像素聚能环 → 大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵
+            · 头部可撞散 · 按 L 测试
           </p>
         </div>
         <div className="debug-section collider-debug-section">

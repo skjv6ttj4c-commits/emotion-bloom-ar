@@ -54,8 +54,10 @@ export type VisualTextureLibrary = {
   arc: Texture;
   pixelDot: Texture;
   pixelDash: Texture;
-  pixelGlyph: Texture;
-  pixelCluster: Texture;
+  pixelNote: Texture;
+  pixelStar: Texture;
+  pixelFlower: Texture;
+  pixelSmile: Texture;
   pixelRing: Texture;
 };
 
@@ -66,6 +68,12 @@ function makeCanvas(width: number, height = width) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('当前浏览器无法创建特效纹理。');
   return { canvas, context };
+}
+
+function createCrispTexture(canvas: HTMLCanvasElement) {
+  const texture = Texture.from(canvas);
+  texture.source.scaleMode = 'nearest';
+  return texture;
 }
 
 function createSoftDotTexture() {
@@ -226,7 +234,7 @@ function createPixelDotTexture() {
   context.shadowBlur = 3;
   context.fillStyle = '#fff';
   context.fillRect(12, 12, 8, 8);
-  return Texture.from(canvas);
+  return createCrispTexture(canvas);
 }
 
 function createPixelDashTexture() {
@@ -252,45 +260,95 @@ function createPixelDashTexture() {
     );
   }
   context.globalAlpha = 1;
-  return Texture.from(canvas);
+  return createCrispTexture(canvas);
 }
 
-function createPixelGlyphTexture() {
-  const { canvas, context } = makeCanvas(40);
+function createPixelMotifTexture(pattern: readonly string[], cellSize = 7) {
+  const padding = 14;
+  const width = Math.max(...pattern.map((row) => row.length)) * cellSize;
+  const height = pattern.length * cellSize;
+  const { canvas, context } = makeCanvas(
+    width + padding * 2,
+    height + padding * 2,
+  );
   context.imageSmoothingEnabled = false;
-  context.shadowColor = 'rgba(255,255,255,.88)';
-  context.shadowBlur = 7;
-  context.fillStyle = '#fff';
-  context.fillRect(16, 5, 8, 30);
-  context.fillRect(5, 16, 30, 8);
-  context.globalAlpha = 0.58;
-  context.fillRect(9, 9, 6, 6);
-  context.fillRect(25, 25, 6, 6);
-  context.globalAlpha = 1;
-  return Texture.from(canvas);
-}
-
-function createPixelClusterTexture() {
-  const { canvas, context } = makeCanvas(72);
-  context.imageSmoothingEnabled = false;
-  const cells = [
-    [4, 1], [5, 1], [3, 2], [4, 2], [5, 2], [6, 2],
-    [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3],
-    [2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4],
-    [3, 5], [4, 5], [5, 5], [6, 5], [2, 6], [3, 6],
-    [4, 6], [5, 6], [6, 6], [7, 6], [3, 7], [4, 7],
-    [5, 7], [6, 7], [4, 8], [5, 8],
-  ];
   context.shadowColor = 'rgba(255,255,255,.9)';
-  context.shadowBlur = 8;
-  for (const [column, row] of cells) {
-    const edge = row === 1 || row === 8 || column === 2 || column === 7;
-    context.globalAlpha = edge ? 0.72 : 0.96;
-    context.fillStyle = '#fff';
-    context.fillRect(column * 7, row * 7, 5, 5);
+  context.shadowBlur = 9;
+  for (let row = 0; row < pattern.length; row += 1) {
+    for (let column = 0; column < pattern[row].length; column += 1) {
+      if (pattern[row][column] !== '#') continue;
+      context.globalAlpha = (row + column) % 5 === 0 ? 0.76 : 1;
+      context.fillStyle = '#fff';
+      context.fillRect(
+        padding + column * cellSize,
+        padding + row * cellSize,
+        cellSize - 1,
+        cellSize - 1,
+      );
+    }
   }
   context.globalAlpha = 1;
-  return Texture.from(canvas);
+  return createCrispTexture(canvas);
+}
+
+function createPixelNoteTexture() {
+  return createPixelMotifTexture([
+    '......###',
+    '....#####',
+    '...##...#',
+    '..##....#',
+    '.##.....#',
+    '.##.....#',
+    '###....##',
+    '###...###',
+    '.#.....##',
+  ]);
+}
+
+function createPixelStarTexture() {
+  return createPixelMotifTexture([
+    '.....#.....',
+    '..#..#..#..',
+    '...#####...',
+    '.#########.',
+    '..#######..',
+    '###########',
+    '..#######..',
+    '...##.##...',
+    '..##...##..',
+    '.#.......#.',
+  ]);
+}
+
+function createPixelFlowerTexture() {
+  return createPixelMotifTexture([
+    '...##.##...',
+    '..#######..',
+    '.#########.',
+    '####.#.####',
+    '###..#..###',
+    '.#########.',
+    '..#######..',
+    '...#####...',
+    '....###....',
+    '.....#.....',
+  ]);
+}
+
+function createPixelSmileTexture() {
+  return createPixelMotifTexture([
+    '..#######..',
+    '.##.....##.',
+    '##.......##',
+    '#..##.##..#',
+    '#..##.##..#',
+    '#.........#',
+    '#..#...#..#',
+    '#...###...#',
+    '##.......##',
+    '.##.....##.',
+    '..#######..',
+  ]);
 }
 
 function createPixelRingTexture() {
@@ -315,7 +373,7 @@ function createPixelRingTexture() {
     );
   }
   context.globalAlpha = 1;
-  return Texture.from(canvas);
+  return createCrispTexture(canvas);
 }
 
 export function createVisualTextureLibrary(): VisualTextureLibrary {
@@ -329,8 +387,10 @@ export function createVisualTextureLibrary(): VisualTextureLibrary {
     arc: createArcTexture(),
     pixelDot: createPixelDotTexture(),
     pixelDash: createPixelDashTexture(),
-    pixelGlyph: createPixelGlyphTexture(),
-    pixelCluster: createPixelClusterTexture(),
+    pixelNote: createPixelNoteTexture(),
+    pixelStar: createPixelStarTexture(),
+    pixelFlower: createPixelFlowerTexture(),
+    pixelSmile: createPixelSmileTexture(),
     pixelRing: createPixelRingTexture(),
   };
 }

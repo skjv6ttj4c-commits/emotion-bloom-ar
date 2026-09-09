@@ -52,6 +52,11 @@ export type VisualTextureLibrary = {
   energyRing: Texture;
   blossom: Texture;
   arc: Texture;
+  pixelDot: Texture;
+  pixelDash: Texture;
+  pixelGlyph: Texture;
+  pixelCluster: Texture;
+  pixelRing: Texture;
 };
 
 function makeCanvas(width: number, height = width) {
@@ -211,6 +216,108 @@ function createArcTexture() {
   return Texture.from(canvas);
 }
 
+function createPixelDotTexture() {
+  const { canvas, context } = makeCanvas(32);
+  context.imageSmoothingEnabled = false;
+  context.shadowColor = 'rgba(255,255,255,.9)';
+  context.shadowBlur = 9;
+  context.fillStyle = 'rgba(255,255,255,.28)';
+  context.fillRect(10, 10, 12, 12);
+  context.shadowBlur = 3;
+  context.fillStyle = '#fff';
+  context.fillRect(12, 12, 8, 8);
+  return Texture.from(canvas);
+}
+
+function createPixelDashTexture() {
+  const { canvas, context } = makeCanvas(18, 64);
+  context.imageSmoothingEnabled = false;
+  const segments = [
+    { y: 4, size: 4, alpha: 0.22 },
+    { y: 13, size: 5, alpha: 0.38 },
+    { y: 24, size: 6, alpha: 0.58 },
+    { y: 37, size: 7, alpha: 0.82 },
+    { y: 52, size: 8, alpha: 1 },
+  ];
+  context.shadowColor = 'rgba(255,255,255,.92)';
+  context.shadowBlur = 6;
+  for (const segment of segments) {
+    context.globalAlpha = segment.alpha;
+    context.fillStyle = '#fff';
+    context.fillRect(
+      Math.round((18 - segment.size) / 2),
+      segment.y,
+      segment.size,
+      segment.size,
+    );
+  }
+  context.globalAlpha = 1;
+  return Texture.from(canvas);
+}
+
+function createPixelGlyphTexture() {
+  const { canvas, context } = makeCanvas(40);
+  context.imageSmoothingEnabled = false;
+  context.shadowColor = 'rgba(255,255,255,.88)';
+  context.shadowBlur = 7;
+  context.fillStyle = '#fff';
+  context.fillRect(16, 5, 8, 30);
+  context.fillRect(5, 16, 30, 8);
+  context.globalAlpha = 0.58;
+  context.fillRect(9, 9, 6, 6);
+  context.fillRect(25, 25, 6, 6);
+  context.globalAlpha = 1;
+  return Texture.from(canvas);
+}
+
+function createPixelClusterTexture() {
+  const { canvas, context } = makeCanvas(72);
+  context.imageSmoothingEnabled = false;
+  const cells = [
+    [4, 1], [5, 1], [3, 2], [4, 2], [5, 2], [6, 2],
+    [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3],
+    [2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4],
+    [3, 5], [4, 5], [5, 5], [6, 5], [2, 6], [3, 6],
+    [4, 6], [5, 6], [6, 6], [7, 6], [3, 7], [4, 7],
+    [5, 7], [6, 7], [4, 8], [5, 8],
+  ];
+  context.shadowColor = 'rgba(255,255,255,.9)';
+  context.shadowBlur = 8;
+  for (const [column, row] of cells) {
+    const edge = row === 1 || row === 8 || column === 2 || column === 7;
+    context.globalAlpha = edge ? 0.72 : 0.96;
+    context.fillStyle = '#fff';
+    context.fillRect(column * 7, row * 7, 5, 5);
+  }
+  context.globalAlpha = 1;
+  return Texture.from(canvas);
+}
+
+function createPixelRingTexture() {
+  const { canvas, context } = makeCanvas(160);
+  context.imageSmoothingEnabled = false;
+  context.shadowColor = 'rgba(255,255,255,.86)';
+  context.shadowBlur = 7;
+  context.fillStyle = '#fff';
+  const segments = 44;
+  for (let index = 0; index < segments; index += 1) {
+    if (index % 9 === 7) continue;
+    const angle = (index / segments) * Math.PI * 2;
+    const pulse = index % 3 === 0 ? 3 : 0;
+    const size = 5 + (index % 4 === 0 ? 2 : 0);
+    const radius = 60 + pulse;
+    context.globalAlpha = 0.62 + (index % 5) * 0.08;
+    context.fillRect(
+      Math.round(80 + Math.cos(angle) * radius - size / 2),
+      Math.round(80 + Math.sin(angle) * radius - size / 2),
+      size,
+      size,
+    );
+  }
+  context.globalAlpha = 1;
+  return Texture.from(canvas);
+}
+
 export function createVisualTextureLibrary(): VisualTextureLibrary {
   return {
     softDot: createSoftDotTexture(),
@@ -220,6 +327,11 @@ export function createVisualTextureLibrary(): VisualTextureLibrary {
     energyRing: createEnergyRingTexture(),
     blossom: createBlossomTexture(),
     arc: createArcTexture(),
+    pixelDot: createPixelDotTexture(),
+    pixelDash: createPixelDashTexture(),
+    pixelGlyph: createPixelGlyphTexture(),
+    pixelCluster: createPixelClusterTexture(),
+    pixelRing: createPixelRingTexture(),
   };
 }
 

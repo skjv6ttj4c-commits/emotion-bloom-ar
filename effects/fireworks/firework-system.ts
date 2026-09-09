@@ -36,7 +36,7 @@ export type FireworkMetrics = {
   phase: FireworkPhase;
 };
 
-type SparkKind = 'dot' | 'streak' | 'star' | 'petal';
+type SparkKind = 'pixel' | 'dash' | 'glyph' | 'cluster';
 
 type FireworkSlot = {
   particle: Particle;
@@ -88,14 +88,14 @@ export class FireworkSystem {
     this.capacity = Math.max(120, Math.min(MAX_FIREWORK_PARTICLES, capacity));
     this.maxCollisionChecksPerFrame = this.capacity <= 300 ? 220 : 360;
     this.batches = {
-      dot: this.createBatch(textures.softDot),
-      streak: this.createBatch(textures.streak),
-      star: this.createBatch(textures.star),
-      petal: this.createBatch(textures.petal),
+      pixel: this.createBatch(textures.pixelDot),
+      dash: this.createBatch(textures.pixelDash),
+      glyph: this.createBatch(textures.pixelGlyph),
+      cluster: this.createBatch(textures.pixelCluster),
     };
     this.rings = [0, 1, 2].map((index) => {
       const ring = new Sprite({
-        texture: textures.energyRing,
+        texture: textures.pixelRing,
         anchor: 0.5,
       });
       ring.visible = false;
@@ -110,7 +110,7 @@ export class FireworkSystem {
       return ring;
     });
     this.heroStars = [0, 1, 2, 3, 4].map((index) => {
-      const star = new Sprite({ texture: textures.blossom, anchor: 0.5 });
+      const star = new Sprite({ texture: textures.pixelCluster, anchor: 0.5 });
       star.visible = false;
       star.alpha = 0;
       star.tint = [
@@ -125,37 +125,41 @@ export class FireworkSystem {
     });
     this.container.addChild(...this.rings, ...this.heroStars);
     this.container.addChild(
-      this.batches.dot,
-      this.batches.streak,
-      this.batches.star,
-      this.batches.petal,
+      this.batches.pixel,
+      this.batches.dash,
+      this.batches.glyph,
+      this.batches.cluster,
     );
 
-    const dotEnd = Math.floor(this.capacity * 0.2);
-    const streakEnd = Math.floor(this.capacity * 0.34);
-    const starEnd = Math.floor(this.capacity * 0.48);
+    const dotEnd = Math.floor(this.capacity * 0.3);
+    const streakEnd = Math.floor(this.capacity * 0.52);
+    const starEnd = Math.floor(this.capacity * 0.68);
     for (let index = 0; index < this.capacity; index += 1) {
       const kind: SparkKind =
         index < dotEnd
-          ? 'dot'
+          ? 'pixel'
           : index < streakEnd
-            ? 'streak'
+            ? 'dash'
             : index < starEnd
-              ? 'star'
-              : 'petal';
+              ? 'glyph'
+              : 'cluster';
       const scale =
-        (kind === 'dot'
-          ? 0.3 + Math.random() * 0.32
-          : kind === 'streak'
-            ? 0.36 + Math.random() * 0.24
-            : kind === 'star'
-              ? 0.32 + Math.random() * 0.24
-              : 0.48 + Math.random() * 0.42) * CANDY_BLOOM_SCALE.firework;
+        (kind === 'pixel'
+          ? 0.36 + Math.random() * 0.34
+          : kind === 'dash'
+            ? 0.42 + Math.random() * 0.28
+            : kind === 'glyph'
+              ? 0.34 + Math.random() * 0.3
+              : 0.34 + Math.random() * 0.34) * CANDY_BLOOM_SCALE.firework;
       const particle = new Particle({
         texture:
-          textures[
-            kind === 'dot' ? 'softDot' : kind === 'star' ? 'star' : kind
-          ],
+          kind === 'pixel'
+            ? textures.pixelDot
+            : kind === 'dash'
+              ? textures.pixelDash
+              : kind === 'glyph'
+                ? textures.pixelGlyph
+                : textures.pixelCluster,
         x: -100,
         y: -100,
         scaleX: scale,
@@ -298,7 +302,7 @@ export class FireworkSystem {
             Math.random() < 0.16
           ) {
             this.spawnSpark(
-              'dot',
+              'pixel',
               collision.x,
               collision.y,
               collision.normalX * (90 + Math.random() * 80),
@@ -320,7 +324,7 @@ export class FireworkSystem {
         slot.particle.y = nextY;
       }
 
-      if (slot.kind === 'streak') {
+      if (slot.kind === 'dash') {
         slot.particle.rotation =
           Math.atan2(slot.velocityY, slot.velocityX) - Math.PI / 2;
       } else {
@@ -518,7 +522,7 @@ export class FireworkSystem {
         const velocityX = direction * 78 + (Math.random() - 0.5) * 38;
         const velocityY = -360 - Math.random() * 210;
         this.spawnSpark(
-          'streak',
+          'dash',
           originX + (Math.random() - 0.5) * 9,
           originY + Math.random() * 12,
           velocityX,
@@ -579,16 +583,16 @@ export class FireworkSystem {
         Math.cos(angle) * speed,
         Math.sin(angle) * speed,
         pickColor(LAUGH_PALETTE),
-        kind === 'petal'
-          ? 1.7 + Math.random() * 0.9
-          : 0.82 + Math.random() * 0.58,
-        kind === 'petal' ? 115 : 275,
-        kind === 'petal' ? 0.82 : 0.72,
+        kind === 'cluster'
+          ? 1.35 + Math.random() * 0.65
+          : 0.78 + Math.random() * 0.58,
+        kind === 'cluster' ? 138 : 245,
+        kind === 'cluster' ? 0.88 : 0.74,
       );
     }
     for (let index = 0; index < 3; index += 1) {
       this.spawnSpark(
-        'dot',
+        'pixel',
         burstX,
         burstY,
         (Math.random() - 0.5) * 45,
@@ -606,7 +610,7 @@ export class FireworkSystem {
       const dustAngle = phase + (index / goldDustCount) * Math.PI * 2;
       const dustSpeed = 70 + Math.random() * 210;
       this.spawnSpark(
-        'dot',
+        'pixel',
         burstX,
         burstY,
         Math.cos(dustAngle) * dustSpeed,
@@ -636,7 +640,7 @@ export class FireworkSystem {
       const side = index % 2 === 0 ? -1 : 1;
       const angle = Math.random() * Math.PI * 2;
       const speed = 95 + Math.random() * 190;
-      const kind: SparkKind = Math.random() < 0.58 ? 'star' : 'petal';
+      const kind: SparkKind = Math.random() < 0.48 ? 'glyph' : 'cluster';
       this.spawnSpark(
         kind,
         centerX + side * radiusX * (0.65 + Math.random() * 0.45),
@@ -645,7 +649,7 @@ export class FireworkSystem {
         Math.sin(angle) * speed - 30,
         Math.random() < 0.34 ? CANDY_BLOOM.gold : pickColor(LAUGH_PALETTE),
         0.74 + Math.random() * 0.52,
-        kind === 'petal' ? 150 : 245,
+        kind === 'cluster' ? 150 : 225,
         1.15,
       );
     }
@@ -653,10 +657,10 @@ export class FireworkSystem {
 
   private pickBurstKind(): SparkKind {
     const value = Math.random();
-    if (value < 0.62) return 'petal';
-    if (value < 0.78) return 'dot';
-    if (value < 0.9) return 'streak';
-    return 'star';
+    if (value < 0.44) return 'cluster';
+    if (value < 0.72) return 'pixel';
+    if (value < 0.9) return 'dash';
+    return 'glyph';
   }
 
   private spawnSpark(
@@ -678,7 +682,7 @@ export class FireworkSystem {
     slot.velocityY = velocityY;
     slot.gravity = gravity;
     slot.drag = drag;
-    slot.angularVelocity = kind === 'streak' ? 0 : (Math.random() - 0.5) * 5.5;
+    slot.angularVelocity = kind === 'dash' ? 0 : (Math.random() - 0.5) * 4.2;
     slot.life = lifetime;
     slot.maximumLife = lifetime;
     slot.baseAlpha = 0.8 + Math.random() * 0.2;
@@ -689,21 +693,19 @@ export class FireworkSystem {
     slot.particle.tint = tint;
     slot.particle.alpha = 0;
     slot.particle.rotation =
-      kind === 'streak'
+      kind === 'dash'
         ? Math.atan2(velocityY, velocityX) - Math.PI / 2
         : Math.random() * Math.PI * 2;
     this.activeParticles += 1;
   }
 
   private findAvailableSlot(kind: SparkKind) {
-    for (let pass = 0; pass < 2; pass += 1) {
-      for (let attempt = 0; attempt < this.capacity; attempt += 1) {
-        const index = (this.nextPoolIndex + attempt) % this.capacity;
-        const slot = this.slots[index];
-        if (slot.active || (pass === 0 && slot.kind !== kind)) continue;
-        this.nextPoolIndex = (index + 1) % this.capacity;
-        return slot;
-      }
+    for (let attempt = 0; attempt < this.capacity; attempt += 1) {
+      const index = (this.nextPoolIndex + attempt) % this.capacity;
+      const slot = this.slots[index];
+      if (slot.active || slot.kind !== kind) continue;
+      this.nextPoolIndex = (index + 1) % this.capacity;
+      return slot;
     }
     return null;
   }

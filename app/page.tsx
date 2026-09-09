@@ -675,7 +675,7 @@ export default function Home() {
         </div>
         <div className="debug-section firework-debug-section">
           <div className="section-title-row">
-            <p className="debug-label">PIXIJS 烟花</p>
+            <p className="debug-label">PIXIJS 像素烟花</p>
             <span className="firework-trigger-chip">ON ENTER · LAUGH</span>
           </div>
           <div className="rain-metrics">
@@ -714,8 +714,8 @@ export default function Home() {
             </span>
           </div>
           <p className="rain-help">
-            蓄能光环 → 3–5 朵错时开放 → 金色花蕊 → 花瓣余韵 · 头部可推开粒子 ·
-            按 L 测试
+            像素聚能环 → 方块矩阵主爆 → 分段字符拖尾 → 霓虹纸屑余韵 ·
+            头部可撞散 · 按 L 测试
           </p>
         </div>
         <div className="debug-section collider-debug-section">

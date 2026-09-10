@@ -64,7 +64,6 @@ export type VisualTextureLibrary = {
   pixelStar: Texture;
   pixelFlower: Texture;
   pixelSmile: Texture;
-  pixelRing: Texture;
 };
 
 function makeCanvas(width: number, height = width) {
@@ -357,31 +356,6 @@ function createPixelSmileTexture() {
   ]);
 }
 
-function createPixelRingTexture() {
-  const { canvas, context } = makeCanvas(160);
-  context.imageSmoothingEnabled = false;
-  context.shadowColor = 'rgba(255,255,255,.86)';
-  context.shadowBlur = 7;
-  context.fillStyle = '#fff';
-  const segments = 44;
-  for (let index = 0; index < segments; index += 1) {
-    if (index % 9 === 7) continue;
-    const angle = (index / segments) * Math.PI * 2;
-    const pulse = index % 3 === 0 ? 3 : 0;
-    const size = 5 + (index % 4 === 0 ? 2 : 0);
-    const radius = 60 + pulse;
-    context.globalAlpha = 0.62 + (index % 5) * 0.08;
-    context.fillRect(
-      Math.round(80 + Math.cos(angle) * radius - size / 2),
-      Math.round(80 + Math.sin(angle) * radius - size / 2),
-      size,
-      size,
-    );
-  }
-  context.globalAlpha = 1;
-  return createCrispTexture(canvas);
-}
-
 export function createVisualTextureLibrary(): VisualTextureLibrary {
   return {
     softDot: createSoftDotTexture(),
@@ -397,7 +371,6 @@ export function createVisualTextureLibrary(): VisualTextureLibrary {
     pixelStar: createPixelStarTexture(),
     pixelFlower: createPixelFlowerTexture(),
     pixelSmile: createPixelSmileTexture(),
-    pixelRing: createPixelRingTexture(),
   };
 }
 

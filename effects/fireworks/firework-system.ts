@@ -59,7 +59,6 @@ const SEQUENCE_DURATION = SPRING_MOTION.flowerFireworkDuration;
 export class FireworkSystem {
   readonly container = new Container();
   private readonly batches: Record<SparkKind, ParticleContainer<Particle>>;
-  private readonly rings: Sprite[];
   private readonly heroMotifs: Sprite[];
   private readonly slots: FireworkSlot[] = [];
   private readonly capacity: number;
@@ -95,22 +94,6 @@ export class FireworkSystem {
       flower: this.createBatch(textures.pixelFlower),
       smile: this.createBatch(textures.pixelSmile),
     };
-    this.rings = [0, 1, 2].map((index) => {
-      const ring = new Sprite({
-        texture: textures.pixelRing,
-        anchor: 0.5,
-      });
-      ring.visible = false;
-      ring.alpha = 0;
-      ring.tint =
-        index === 0
-          ? CANDY_BLOOM.ice
-          : index === 1
-            ? CANDY_BLOOM.pink
-            : CANDY_BLOOM.gold;
-      ring.blendMode = 'add';
-      return ring;
-    });
     const heroTextures = [
       textures.pixelNote,
       textures.pixelSmile,
@@ -132,7 +115,7 @@ export class FireworkSystem {
       star.blendMode = 'add';
       return star;
     });
-    this.container.addChild(...this.rings, ...this.heroMotifs);
+    this.container.addChild(...this.heroMotifs);
     this.container.addChild(
       this.batches.pixel,
       this.batches.dash,
@@ -251,12 +234,6 @@ export class FireworkSystem {
     const collider = this.headCollider;
     this.sequenceOriginX = collider?.centerX ?? width * 0.5;
     this.sequenceOriginY = collider?.centerY ?? height * 0.52;
-    for (const ring of this.rings) {
-      ring.visible = true;
-      ring.alpha = 0;
-      ring.x = this.sequenceOriginX;
-      ring.y = this.sequenceOriginY;
-    }
     for (const star of this.heroMotifs) {
       star.visible = false;
       star.alpha = 0;
@@ -404,7 +381,6 @@ export class FireworkSystem {
   private updateSequence(deltaSeconds: number, width: number, height: number) {
     if (this.sequenceElapsed >= SEQUENCE_DURATION) return;
     this.sequenceElapsed += deltaSeconds;
-    this.updateRings();
     this.updateHeroStars(width, height);
 
     if (!this.launchSpawned && this.sequenceElapsed >= 0.12) {
@@ -431,10 +407,6 @@ export class FireworkSystem {
     }
 
     if (this.sequenceElapsed >= SEQUENCE_DURATION) {
-      for (const ring of this.rings) {
-        ring.alpha = 0;
-        ring.visible = false;
-      }
       for (const star of this.heroMotifs) star.visible = false;
     }
   }
@@ -493,33 +465,6 @@ export class FireworkSystem {
           CANDY_BLOOM_SCALE.firework,
       );
       star.alpha = Math.sin(progress * Math.PI) * 0.94;
-    }
-  }
-
-  private updateRings() {
-    const collider = this.headCollider;
-    const centerX = collider?.centerX ?? this.sequenceOriginX;
-    const centerY = collider?.centerY ?? this.sequenceOriginY;
-    const radiusX = collider?.radiusX ?? 72;
-    const radiusY = collider?.radiusY ?? 94;
-    for (let index = 0; index < this.rings.length; index += 1) {
-      const ring = this.rings[index];
-      const offset = index * 0.06;
-      const progress = Math.max(
-        0,
-        Math.min(1, (this.sequenceElapsed - offset) / 0.42),
-      );
-      const pulse = Math.sin(progress * Math.PI);
-      const expansion = 0.74 + progress * (0.48 + index * 0.12);
-      ring.x = centerX;
-      ring.y = centerY;
-      ring.rotation = (collider?.rotation ?? 0) + index * 0.12;
-      ring.scale.set(
-        (radiusX * 2.72 * expansion * CANDY_BLOOM_SCALE.energyRing) / 128,
-        (radiusY * 2.5 * expansion * CANDY_BLOOM_SCALE.energyRing) / 128,
-      );
-      ring.alpha = pulse * (index === 0 ? 0.82 : index === 1 ? 0.58 : 0.4);
-      ring.visible = progress < 1;
     }
   }
 

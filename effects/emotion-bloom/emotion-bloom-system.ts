@@ -37,7 +37,6 @@ type DigitalRainDrop = {
   baseAlpha: number;
   depth: number;
   revealDelay: number;
-  chargeAngle: number;
 };
 
 const DIGITAL_RAIN_CAPACITY = 112;
@@ -51,10 +50,8 @@ export class EmotionBloomSystem {
   private readonly rainBackLayer = new Container();
   private readonly rainMiddleLayer = new Container();
   private readonly rainFrontLayer = new Container();
-  private readonly chargeLayer = new Container();
   private readonly ambientAura: Sprite;
   private readonly auroraSweep: Sprite;
-  private readonly chargeRing: Sprite;
   private readonly orbiters: Sprite[] = [];
   private readonly rainDrops: DigitalRainDrop[] = [];
   private state: InteractionState = 'no-face';
@@ -73,7 +70,6 @@ export class EmotionBloomSystem {
       this.rainBackLayer,
       this.rainMiddleLayer,
       this.rainFrontLayer,
-      this.chargeLayer,
     );
 
     this.ambientAura = new Sprite({
@@ -99,12 +95,6 @@ export class EmotionBloomSystem {
       this.orbiters.push(orbiter);
     }
 
-    this.chargeRing = new Sprite({ texture: textures.pixelRing, anchor: 0.5 });
-    this.chargeRing.tint = EMOTION_BLOOM.cyan;
-    this.chargeRing.blendMode = 'add';
-    this.chargeRing.visible = false;
-    this.chargeLayer.addChild(this.chargeRing);
-
     for (let index = 0; index < DIGITAL_RAIN_CAPACITY; index += 1) {
       const depth = index % 7 < 2 ? 0 : index % 7 < 6 ? 1 : 2;
       const isDash = index % 5 === 0 || index % 11 === 0;
@@ -113,7 +103,7 @@ export class EmotionBloomSystem {
         anchor: 0.5,
       });
       sprite.tint = pickColor(SMILE_PALETTE);
-      sprite.blendMode = depth === 0 ? 'normal' : 'add';
+      sprite.blendMode = depth === 2 ? 'add' : 'normal';
       sprite.visible = false;
       const layer =
         depth === 0
@@ -132,14 +122,11 @@ export class EmotionBloomSystem {
         sway: 2 + (index % 9) * 0.8,
         phase: index * 1.731,
         baseScale:
-          (isDash ? 0.17 : 0.18) + (index % 6) * 0.025 + depth * 0.035,
-        baseAlpha: 0.34 + (index % 5) * 0.105 + depth * 0.08,
+          (isDash ? 0.27 : 0.31) + (index % 6) * 0.042 + depth * 0.052,
+        baseAlpha: 0.56 + (index % 5) * 0.085 + depth * 0.045,
         depth,
         revealDelay:
           ((index * 19) % DIGITAL_RAIN_CAPACITY) / DIGITAL_RAIN_CAPACITY,
-        chargeAngle:
-          (index / DIGITAL_RAIN_CAPACITY) * Math.PI * 2 +
-          ((index % 7) - 3) * 0.035,
       });
     }
   }
@@ -188,7 +175,6 @@ export class EmotionBloomSystem {
     const head = this.getHead(width, height);
     this.updateAmbient(head, now);
     this.updateDigitalRain(deltaSeconds, now, width, height, head);
-    this.updateChargeRing(head);
   }
 
   getMetrics(): EmotionBloomMetrics {
@@ -196,8 +182,6 @@ export class EmotionBloomSystem {
     if (this.ambientAura.visible && this.ambientAura.alpha > 0.01)
       activeElements += 1;
     if (this.auroraSweep.visible && this.auroraSweep.alpha > 0.01)
-      activeElements += 1;
-    if (this.chargeRing.visible && this.chargeRing.alpha > 0.01)
       activeElements += 1;
     for (const orbiter of this.orbiters) {
       if (orbiter.visible && orbiter.alpha > 0.01) activeElements += 1;
@@ -207,7 +191,7 @@ export class EmotionBloomSystem {
     }
     return {
       activeElements,
-      capacity: DIGITAL_RAIN_CAPACITY + 6,
+      capacity: DIGITAL_RAIN_CAPACITY + 5,
       intensity: this.intensity,
       energy: this.energy,
       stage: this.getStage(),
@@ -323,56 +307,31 @@ export class EmotionBloomSystem {
         drop.xRatio * width +
         Math.sin(now * 0.00075 + drop.phase) * drop.sway;
       const fallY = drop.yRatio * height;
-      const chargePoint = this.localPoint(
-        head,
-        Math.cos(drop.chargeAngle) * head.radiusX * 1.3,
-        Math.sin(drop.chargeAngle) * head.radiusY * 1.18,
-      );
-      const chargeEase = charge * charge * (3 - 2 * charge);
-      const x = fallX + (chargePoint.x - fallX) * chargeEase;
-      const y = fallY + (chargePoint.y - fallY) * chargeEase;
+      const x = fallX;
+      const y = fallY;
       const normalizedX = (x - head.centerX) / (head.radiusX * 1.18);
       const normalizedY = (y - head.centerY) / (head.radiusY * 1.12);
       const overFace = normalizedX * normalizedX + normalizedY * normalizedY < 1;
       const depthScale =
-        drop.depth === 0 ? 0.74 : drop.depth === 2 ? 1.34 : 1;
+        drop.depth === 0 ? 0.82 : drop.depth === 2 ? 1.46 : 1;
       const pulse = 0.88 + Math.sin(now * 0.003 + drop.phase) * 0.12;
+      const chargeFade = 1 - charge * 0.72;
 
       drop.sprite.position.set(x, y);
       drop.sprite.rotation = 0;
       drop.sprite.scale.set(
-        drop.baseScale * depthScale * (1 + charge * 0.28),
+        drop.baseScale * depthScale,
       );
       drop.sprite.alpha =
         drop.baseAlpha *
         this.intensity *
         pulse *
+        chargeFade *
         dissolveFade *
         celebrationFade *
-        (overFace && charge < 0.65 ? 0.12 : 1);
+        (overFace ? 0.12 : 1);
       drop.sprite.visible = drop.sprite.alpha > 0.01;
     }
-  }
-
-  private updateChargeRing(head: HeadCollider) {
-    const charging =
-      this.state === 'laugh-entering' ||
-      this.state === 'laughing' ||
-      this.state === 'celebrating';
-    const progress = charging ? clamp(this.chargeAge / 0.54) : 0;
-    const celebrationFade =
-      this.state === 'celebrating'
-        ? 1 - clamp((this.chargeAge - 0.62) / 0.28)
-        : 1;
-    this.chargeRing.position.set(head.centerX, head.centerY);
-    this.chargeRing.rotation = head.rotation - progress * 0.36;
-    this.chargeRing.scale.set(
-      (head.radiusX * (2.28 + progress * 0.62)) / 160,
-      (head.radiusY * (2.18 + progress * 0.52)) / 160,
-    );
-    this.chargeRing.alpha =
-      Math.sin(progress * Math.PI * 0.82) * 0.76 * celebrationFade;
-    this.chargeRing.visible = charging && this.chargeRing.alpha > 0.01;
   }
 
   private getHead(width: number, height: number): HeadCollider {

@@ -16,7 +16,7 @@ const INITIAL_METRICS: VisualEffectsMetrics = {
   quality: 'high',
   bloom: {
     activeElements: 0,
-    capacity: 118,
+    capacity: 117,
     intensity: 0,
     energy: 0,
     stage: 'idle',

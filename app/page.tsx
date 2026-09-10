@@ -669,8 +669,8 @@ export default function Home() {
             />
           </span>
           <p className="rain-help">
-            彩色小色块由稀到密下落 → 大笑前减速聚向头部 → 接续像素烟花 · 按 S
-            测试
+            高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按
+            S 测试
           </p>
           {effectsError ? <p className="rain-error">{effectsError}</p> : null}
         </div>
@@ -715,8 +715,8 @@ export default function Home() {
             </span>
           </div>
           <p className="rain-help">
-            像素聚能环 → 大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵
-            · 头部可撞散 · 按 L 测试
+            顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 ·
+            头部可撞散 · 按 L 测试
           </p>
         </div>
         <div className="debug-section collider-debug-section">

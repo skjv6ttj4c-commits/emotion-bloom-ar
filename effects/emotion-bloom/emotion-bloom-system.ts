@@ -2,7 +2,12 @@ import { Container, Sprite } from 'pixi.js';
 import type { HeadCollider } from '@/face/head-collider';
 import type { InteractionState } from '@/interaction/expression-state-machine';
 import type { QualityLevel } from '../spring-config';
-import { EMOTION_BLOOM, type VisualTextureLibrary } from '../visual-theme';
+import {
+  EMOTION_BLOOM,
+  SMILE_PALETTE,
+  pickColor,
+  type VisualTextureLibrary,
+} from '../visual-theme';
 
 export type EmotionBloomStage =
   | 'idle'
@@ -21,48 +26,54 @@ export type EmotionBloomMetrics = {
   dissolving: boolean;
 };
 
-type DissolvePetal = {
+type DigitalRainDrop = {
   sprite: Sprite;
-  velocityX: number;
-  velocityY: number;
-  spin: number;
-  delay: number;
+  xRatio: number;
+  yRatio: number;
+  speed: number;
+  sway: number;
+  phase: number;
+  baseScale: number;
+  baseAlpha: number;
+  depth: number;
+  revealDelay: number;
+  chargeAngle: number;
 };
 
-const SMILE_DURATION = 1.2;
+const DIGITAL_RAIN_CAPACITY = 112;
+const SMILE_REVEAL_DURATION = 0.9;
 const DISSOLVE_DURATION = 0.85;
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
 export class EmotionBloomSystem {
   readonly container = new Container();
   private readonly ambientLayer = new Container();
-  private readonly smileBackLayer = new Container();
-  private readonly smileFrontLayer = new Container();
-  private readonly dissolveLayer = new Container();
+  private readonly rainBackLayer = new Container();
+  private readonly rainMiddleLayer = new Container();
+  private readonly rainFrontLayer = new Container();
+  private readonly chargeLayer = new Container();
   private readonly ambientAura: Sprite;
   private readonly auroraSweep: Sprite;
-  private readonly smileArc: Sprite;
-  private readonly cornerStars: Sprite[] = [];
-  private readonly cheekThreads: Sprite[] = [];
-  private readonly smilePetals: Sprite[] = [];
+  private readonly chargeRing: Sprite;
   private readonly orbiters: Sprite[] = [];
-  private readonly dissolvePetals: DissolvePetal[] = [];
+  private readonly rainDrops: DigitalRainDrop[] = [];
   private state: InteractionState = 'no-face';
   private quality: QualityLevel = 'high';
   private head: HeadCollider | null = null;
   private targetEnergy = 0;
   private energy = 0;
   private intensity = 0;
-  private smileAge = SMILE_DURATION;
+  private smileAge = SMILE_REVEAL_DURATION;
   private chargeAge = 99;
   private dissolveAge = DISSOLVE_DURATION;
 
   constructor(textures: VisualTextureLibrary) {
     this.container.addChild(
       this.ambientLayer,
-      this.smileBackLayer,
-      this.smileFrontLayer,
-      this.dissolveLayer,
+      this.rainBackLayer,
+      this.rainMiddleLayer,
+      this.rainFrontLayer,
+      this.chargeLayer,
     );
 
     this.ambientAura = new Sprite({
@@ -77,7 +88,7 @@ export class EmotionBloomSystem {
     this.ambientLayer.addChild(this.ambientAura, this.auroraSweep);
 
     for (let index = 0; index < 3; index += 1) {
-      const orbiter = new Sprite({ texture: textures.softDot, anchor: 0.5 });
+      const orbiter = new Sprite({ texture: textures.pixelDot, anchor: 0.5 });
       orbiter.tint = [
         EMOTION_BLOOM.cyan,
         EMOTION_BLOOM.hotPink,
@@ -88,52 +99,47 @@ export class EmotionBloomSystem {
       this.orbiters.push(orbiter);
     }
 
-    this.smileArc = new Sprite({ texture: textures.arc, anchor: 0.5 });
-    this.smileArc.blendMode = 'add';
-    this.smileBackLayer.addChild(this.smileArc);
+    this.chargeRing = new Sprite({ texture: textures.pixelRing, anchor: 0.5 });
+    this.chargeRing.tint = EMOTION_BLOOM.cyan;
+    this.chargeRing.blendMode = 'add';
+    this.chargeRing.visible = false;
+    this.chargeLayer.addChild(this.chargeRing);
 
-    for (let index = 0; index < 2; index += 1) {
-      const thread = new Sprite({ texture: textures.streak, anchor: 0.5 });
-      thread.tint = index === 0 ? EMOTION_BLOOM.cyan : EMOTION_BLOOM.hotPink;
-      thread.blendMode = 'add';
-      this.smileBackLayer.addChild(thread);
-      this.cheekThreads.push(thread);
-
-      const star = new Sprite({ texture: textures.star, anchor: 0.5 });
-      star.tint = index === 0 ? EMOTION_BLOOM.hotPink : EMOTION_BLOOM.cyan;
-      star.blendMode = 'add';
-      this.smileFrontLayer.addChild(star);
-      this.cornerStars.push(star);
-    }
-
-    for (let index = 0; index < 10; index += 1) {
-      const petal = new Sprite({ texture: textures.petal, anchor: 0.5 });
-      petal.tint = [
-        EMOTION_BLOOM.cyan,
-        EMOTION_BLOOM.hotPink,
-        EMOTION_BLOOM.violet,
-        EMOTION_BLOOM.glass,
-      ][index % 4];
-      petal.blendMode = index % 3 === 0 ? 'add' : 'normal';
-      this.smileFrontLayer.addChild(petal);
-      this.smilePetals.push(petal);
-    }
-
-    for (let index = 0; index < 16; index += 1) {
-      const sprite = new Sprite({ texture: textures.petal, anchor: 0.5 });
-      sprite.tint = [
-        EMOTION_BLOOM.cyan,
-        EMOTION_BLOOM.hotPink,
-        EMOTION_BLOOM.violet,
-      ][index % 3];
+    for (let index = 0; index < DIGITAL_RAIN_CAPACITY; index += 1) {
+      const depth = index % 7 < 2 ? 0 : index % 7 < 6 ? 1 : 2;
+      const isDash = index % 5 === 0 || index % 11 === 0;
+      const sprite = new Sprite({
+        texture: isDash ? textures.pixelDash : textures.pixelDot,
+        anchor: 0.5,
+      });
+      sprite.tint = pickColor(SMILE_PALETTE);
+      sprite.blendMode = depth === 0 ? 'normal' : 'add';
       sprite.visible = false;
-      this.dissolveLayer.addChild(sprite);
-      this.dissolvePetals.push({
+      const layer =
+        depth === 0
+          ? this.rainBackLayer
+          : depth === 1
+            ? this.rainMiddleLayer
+            : this.rainFrontLayer;
+      layer.addChild(sprite);
+      this.rainDrops.push({
         sprite,
-        velocityX: 0,
-        velocityY: 0,
-        spin: 0,
-        delay: 0,
+        xRatio:
+          ((index * 37) % DIGITAL_RAIN_CAPACITY) / DIGITAL_RAIN_CAPACITY,
+        yRatio:
+          ((index * 53) % DIGITAL_RAIN_CAPACITY) / DIGITAL_RAIN_CAPACITY,
+        speed: 0.075 + (index % 13) * 0.0065 + depth * 0.028,
+        sway: 2 + (index % 9) * 0.8,
+        phase: index * 1.731,
+        baseScale:
+          (isDash ? 0.17 : 0.18) + (index % 6) * 0.025 + depth * 0.035,
+        baseAlpha: 0.34 + (index % 5) * 0.105 + depth * 0.08,
+        depth,
+        revealDelay:
+          ((index * 19) % DIGITAL_RAIN_CAPACITY) / DIGITAL_RAIN_CAPACITY,
+        chargeAngle:
+          (index / DIGITAL_RAIN_CAPACITY) * Math.PI * 2 +
+          ((index % 7) - 3) * 0.035,
       });
     }
   }
@@ -144,8 +150,6 @@ export class EmotionBloomSystem {
   }
 
   setHeadCollider(collider: HeadCollider) {
-    // Keep the last stable pose briefly so a smile can dissolve from the same
-    // facial position when tracking drops on the transition frame.
     if (collider.valid) this.head = collider;
   }
 
@@ -156,7 +160,6 @@ export class EmotionBloomSystem {
   triggerSmile() {
     this.smileAge = 0;
     this.dissolveAge = DISSOLVE_DURATION;
-    this.hideDissolve();
     return true;
   }
 
@@ -167,26 +170,6 @@ export class EmotionBloomSystem {
 
   triggerDissolve() {
     this.dissolveAge = 0;
-    const head = this.getHead(1, 1);
-    for (let index = 0; index < this.dissolvePetals.length; index += 1) {
-      const item = this.dissolvePetals[index];
-      const side = index % 2 === 0 ? -1 : 1;
-      const row = Math.floor(index / 2) % 5;
-      const point = this.localPoint(
-        head,
-        side * head.radiusX * (0.52 + row * 0.07),
-        -head.radiusY * (0.18 + row * 0.12),
-      );
-      item.sprite.position.set(point.x, point.y);
-      item.sprite.scale.set(0.34 + (index % 4) * 0.08);
-      item.sprite.rotation = head.rotation + side * 0.5;
-      item.sprite.alpha = 0;
-      item.sprite.visible = true;
-      item.velocityX = side * (22 + Math.random() * 28);
-      item.velocityY = -18 - Math.random() * 28;
-      item.spin = side * (0.55 + Math.random() * 1.2);
-      item.delay = (index % 6) * 0.035;
-    }
     return true;
   }
 
@@ -195,7 +178,7 @@ export class EmotionBloomSystem {
     this.chargeAge += deltaSeconds;
     this.dissolveAge += deltaSeconds;
     const targetIntensity = this.getTargetIntensity();
-    const response = targetIntensity > this.intensity ? 0.18 : 0.48;
+    const response = targetIntensity > this.intensity ? 0.2 : 0.58;
     this.intensity +=
       (targetIntensity - this.intensity) *
       (1 - Math.exp(-deltaSeconds / response));
@@ -204,27 +187,27 @@ export class EmotionBloomSystem {
 
     const head = this.getHead(width, height);
     this.updateAmbient(head, now);
-    this.updateSmile(head, now);
-    this.updateDissolve(deltaSeconds);
+    this.updateDigitalRain(deltaSeconds, now, width, height, head);
+    this.updateChargeRing(head);
   }
 
   getMetrics(): EmotionBloomMetrics {
     let activeElements = 0;
-    for (const child of [
-      this.ambientAura,
-      this.auroraSweep,
-      this.smileArc,
-      ...this.orbiters,
-      ...this.cornerStars,
-      ...this.cheekThreads,
-      ...this.smilePetals,
-      ...this.dissolvePetals.map((item) => item.sprite),
-    ]) {
-      if (child.visible && child.alpha > 0.01) activeElements += 1;
+    if (this.ambientAura.visible && this.ambientAura.alpha > 0.01)
+      activeElements += 1;
+    if (this.auroraSweep.visible && this.auroraSweep.alpha > 0.01)
+      activeElements += 1;
+    if (this.chargeRing.visible && this.chargeRing.alpha > 0.01)
+      activeElements += 1;
+    for (const orbiter of this.orbiters) {
+      if (orbiter.visible && orbiter.alpha > 0.01) activeElements += 1;
+    }
+    for (const drop of this.rainDrops) {
+      if (drop.sprite.visible && drop.sprite.alpha > 0.01) activeElements += 1;
     }
     return {
       activeElements,
-      capacity: 36,
+      capacity: DIGITAL_RAIN_CAPACITY + 6,
       intensity: this.intensity,
       energy: this.energy,
       stage: this.getStage(),
@@ -233,33 +216,29 @@ export class EmotionBloomSystem {
   }
 
   destroy() {
-    this.cornerStars.length = 0;
-    this.cheekThreads.length = 0;
-    this.smilePetals.length = 0;
     this.orbiters.length = 0;
-    this.dissolvePetals.length = 0;
+    this.rainDrops.length = 0;
   }
 
   private getTargetIntensity() {
     if (this.state === 'no-face') return 0;
-    if (this.state === 'neutral') return 0.12;
-    if (this.state === 'smile-entering') return 0.72;
-    if (this.state === 'smiling') return 0.78 + this.targetEnergy * 0.22;
+    if (this.state === 'neutral') return 0.08;
+    if (this.state === 'smile-entering') return 0.56;
+    if (this.state === 'smiling') return 0.62 + this.targetEnergy * 0.38;
     if (this.state === 'laugh-entering' || this.state === 'laughing') return 1;
-    if (this.state === 'celebrating') return 0.92;
-    return 0.38;
+    if (this.state === 'celebrating') return 0.58;
+    return 0.28;
   }
 
   private updateAmbient(head: HeadCollider, now: number) {
     const ambient = this.state === 'no-face' ? 0 : 1;
-    const smileLift = this.intensity * 0.08;
     this.ambientAura.position.set(head.centerX, head.centerY);
     this.ambientAura.rotation = head.rotation + now * 0.00008;
     this.ambientAura.scale.set(
       (head.radiusX * 2.48) / 128,
       (head.radiusY * 2.28) / 128,
     );
-    this.ambientAura.alpha = ambient * (0.055 + smileLift);
+    this.ambientAura.alpha = ambient * (0.035 + this.intensity * 0.045);
     this.ambientAura.visible = ambient > 0;
 
     const sweep = (now % 4000) / 4000;
@@ -272,8 +251,7 @@ export class EmotionBloomSystem {
       (head.radiusX * 2.86) / 256,
       (head.radiusY * 2.34) / 256,
     );
-    this.auroraSweep.alpha =
-      ambient * (0.028 + Math.sin(sweep * Math.PI) * 0.055);
+    this.auroraSweep.alpha = ambient * 0.025;
     this.auroraSweep.visible = ambient > 0;
 
     for (let index = 0; index < this.orbiters.length; index += 1) {
@@ -285,112 +263,116 @@ export class EmotionBloomSystem {
         Math.sin(angle) * head.radiusY * 1.08,
       );
       orbiter.position.set(point.x, point.y);
-      orbiter.scale.set(0.24 + index * 0.07 + this.intensity * 0.08);
-      orbiter.alpha = ambient * (0.11 + this.intensity * 0.15);
+      orbiter.scale.set(0.18 + index * 0.045 + this.intensity * 0.06);
+      orbiter.alpha = ambient * (0.08 + this.intensity * 0.1);
       orbiter.visible = ambient > 0;
     }
   }
 
-  private updateSmile(head: HeadCollider, now: number) {
-    const smileVisible = this.intensity > 0.16;
-    const timeline = clamp(this.smileAge / SMILE_DURATION);
-    const charging =
+  private updateDigitalRain(
+    deltaSeconds: number,
+    now: number,
+    width: number,
+    height: number,
+    head: HeadCollider,
+  ) {
+    const activeLimit =
+      this.quality === 'low'
+        ? 48
+        : this.quality === 'medium'
+          ? 76
+          : 104;
+    const reveal = clamp(this.smileAge / SMILE_REVEAL_DURATION);
+    const isChargeState =
       this.state === 'laugh-entering' || this.state === 'laughing';
-    const charge = charging ? clamp(this.chargeAge / 0.38) : 0;
-    const mouthY = head.radiusY * 0.36;
-    const mouthOffset = head.radiusX * 0.34;
+    const isCelebrating = this.state === 'celebrating';
+    const charge =
+      isChargeState || isCelebrating ? clamp(this.chargeAge / 0.42) : 0;
+    const storyVisible = !['no-face', 'neutral'].includes(this.state);
+    const dissolveFade =
+      this.dissolveAge < DISSOLVE_DURATION
+        ? 1 - clamp(this.dissolveAge / DISSOLVE_DURATION)
+        : 1;
+    const celebrationFade = isCelebrating
+      ? 1 - clamp((this.chargeAge - 0.58) / 0.4)
+      : 1;
 
-    for (let index = 0; index < 2; index += 1) {
-      const side = index === 0 ? -1 : 1;
-      const mouth = this.localPoint(head, side * mouthOffset, mouthY);
-      const eye = this.localPoint(
-        head,
-        side * head.radiusX * 0.58,
-        -head.radiusY * 0.22,
-      );
-      const star = this.cornerStars[index];
-      const starPulse =
-        this.smileAge < 0.3
-          ? Math.sin(clamp(this.smileAge / 0.3) * Math.PI)
-          : 0.18 + Math.sin(now * 0.003 + index * 1.8) * 0.06;
-      star.position.set(mouth.x, mouth.y);
-      star.rotation = now * 0.0015 * side;
-      star.scale.set((0.5 + charge * 0.3) * starPulse);
-      star.alpha = smileVisible ? starPulse * this.intensity : 0;
-      star.visible = smileVisible;
-
-      const thread = this.cheekThreads[index];
-      const threadReveal = clamp((timeline - 0.125) / 0.21);
-      const dx = eye.x - mouth.x;
-      const dy = eye.y - mouth.y;
-      thread.position.set(mouth.x + dx * 0.5, mouth.y + dy * 0.5);
-      thread.rotation = Math.atan2(dy, dx) + Math.PI / 2;
-      thread.scale.set(0.52, (Math.hypot(dx, dy) / 42) * threadReveal);
-      thread.alpha = smileVisible ? threadReveal * this.intensity * 0.68 : 0;
-      thread.visible = smileVisible;
-    }
-
-    const activePetals =
-      this.quality === 'low' ? 6 : this.quality === 'medium' ? 8 : 10;
-    const petalReveal = clamp((timeline - 0.33) / 0.34);
-    for (let index = 0; index < this.smilePetals.length; index += 1) {
-      const petal = this.smilePetals[index];
-      if (index >= activePetals || !smileVisible) {
-        petal.visible = false;
+    for (let index = 0; index < this.rainDrops.length; index += 1) {
+      const drop = this.rainDrops[index];
+      const available =
+        index < activeLimit &&
+        (storyVisible || this.dissolveAge < DISSOLVE_DURATION) &&
+        reveal >= drop.revealDelay * 0.84;
+      if (!available) {
+        drop.sprite.visible = false;
         continue;
       }
-      const side = index % 2 === 0 ? -1 : 1;
-      const row = Math.floor(index / 2);
-      const spread = 1 + charge * (0.34 + row * 0.035);
-      const point = this.localPoint(
+
+      const speedScale = isChargeState ? 0.24 : isCelebrating ? 0.16 : 1;
+      drop.yRatio +=
+        deltaSeconds *
+        drop.speed *
+        speedScale *
+        (0.78 + this.energy * 0.72);
+      if (drop.yRatio > 1.12) {
+        drop.yRatio = -0.12 - (index % 9) * 0.016;
+        drop.xRatio = ((index * 31 + Math.floor(now / 1000)) % 109) / 109;
+      }
+
+      const fallX =
+        drop.xRatio * width +
+        Math.sin(now * 0.00075 + drop.phase) * drop.sway;
+      const fallY = drop.yRatio * height;
+      const chargePoint = this.localPoint(
         head,
-        side * head.radiusX * (0.62 + row * 0.095) * spread,
-        -head.radiusY * (0.18 + row * 0.13) * spread,
+        Math.cos(drop.chargeAngle) * head.radiusX * 1.3,
+        Math.sin(drop.chargeAngle) * head.radiusY * 1.18,
       );
-      const breathe = 1 + Math.sin(now * 0.0024 + index * 0.72) * 0.09;
-      petal.position.set(point.x, point.y);
-      petal.rotation =
-        head.rotation + side * (0.52 + row * 0.12) + now * 0.00016 * side;
-      petal.scale.set((0.31 + row * 0.055) * breathe * petalReveal);
-      petal.alpha = petalReveal * this.intensity * (0.62 + (index % 3) * 0.11);
-      petal.visible = true;
-    }
+      const chargeEase = charge * charge * (3 - 2 * charge);
+      const x = fallX + (chargePoint.x - fallX) * chargeEase;
+      const y = fallY + (chargePoint.y - fallY) * chargeEase;
+      const normalizedX = (x - head.centerX) / (head.radiusX * 1.18);
+      const normalizedY = (y - head.centerY) / (head.radiusY * 1.12);
+      const overFace = normalizedX * normalizedX + normalizedY * normalizedY < 1;
+      const depthScale =
+        drop.depth === 0 ? 0.74 : drop.depth === 2 ? 1.34 : 1;
+      const pulse = 0.88 + Math.sin(now * 0.003 + drop.phase) * 0.12;
 
-    const arcReveal = clamp((timeline - 0.66) / 0.34);
-    this.smileArc.position.set(
-      head.centerX,
-      head.centerY - head.radiusY * 0.04,
-    );
-    this.smileArc.rotation = head.rotation - 0.28 - charge * 0.1;
-    this.smileArc.scale.set(
-      (head.radiusX * (2.55 + charge * 0.58)) / 256,
-      (head.radiusY * (2.22 + charge * 0.44)) / 256,
-    );
-    this.smileArc.alpha = smileVisible ? arcReveal * this.intensity * 0.72 : 0;
-    this.smileArc.visible = smileVisible;
-  }
-
-  private updateDissolve(deltaSeconds: number) {
-    if (this.dissolveAge >= DISSOLVE_DURATION) {
-      this.hideDissolve();
-      return;
-    }
-    for (const item of this.dissolvePetals) {
-      const progress = clamp(
-        (this.dissolveAge - item.delay) /
-          Math.max(0.1, DISSOLVE_DURATION - item.delay),
+      drop.sprite.position.set(x, y);
+      drop.sprite.rotation = 0;
+      drop.sprite.scale.set(
+        drop.baseScale * depthScale * (1 + charge * 0.28),
       );
-      item.sprite.x += item.velocityX * deltaSeconds;
-      item.sprite.y += item.velocityY * deltaSeconds;
-      item.velocityY += 28 * deltaSeconds;
-      item.sprite.rotation += item.spin * deltaSeconds;
-      item.sprite.alpha = Math.sin(progress * Math.PI) * 0.64;
-      item.sprite.visible = progress < 1;
+      drop.sprite.alpha =
+        drop.baseAlpha *
+        this.intensity *
+        pulse *
+        dissolveFade *
+        celebrationFade *
+        (overFace && charge < 0.65 ? 0.12 : 1);
+      drop.sprite.visible = drop.sprite.alpha > 0.01;
     }
   }
 
-  private hideDissolve() {
-    for (const item of this.dissolvePetals) item.sprite.visible = false;
+  private updateChargeRing(head: HeadCollider) {
+    const charging =
+      this.state === 'laugh-entering' ||
+      this.state === 'laughing' ||
+      this.state === 'celebrating';
+    const progress = charging ? clamp(this.chargeAge / 0.54) : 0;
+    const celebrationFade =
+      this.state === 'celebrating'
+        ? 1 - clamp((this.chargeAge - 0.62) / 0.28)
+        : 1;
+    this.chargeRing.position.set(head.centerX, head.centerY);
+    this.chargeRing.rotation = head.rotation - progress * 0.36;
+    this.chargeRing.scale.set(
+      (head.radiusX * (2.28 + progress * 0.62)) / 160,
+      (head.radiusY * (2.18 + progress * 0.52)) / 160,
+    );
+    this.chargeRing.alpha =
+      Math.sin(progress * Math.PI * 0.82) * 0.76 * celebrationFade;
+    this.chargeRing.visible = charging && this.chargeRing.alpha > 0.01;
   }
 
   private getHead(width: number, height: number): HeadCollider {

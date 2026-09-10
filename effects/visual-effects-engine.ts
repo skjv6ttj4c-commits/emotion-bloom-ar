@@ -175,7 +175,7 @@ export class VisualEffectsEngine {
       quality: this.currentQuality,
       bloom: this.emotionBloom?.getMetrics() ?? {
         activeElements: 0,
-        capacity: 36,
+        capacity: 118,
         intensity: 0,
         energy: 0,
         stage: 'idle',

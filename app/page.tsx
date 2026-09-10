@@ -32,8 +32,8 @@ const faceStatusCopy = {
 const interactionStateCopy = {
   'no-face': { label: 'NO FACE', detail: '等待你回到镜头' },
   neutral: { label: 'NEUTRAL', detail: '极光正在呼吸' },
-  'smile-entering': { label: 'AWAKENING', detail: '嘴角星芒正在点亮' },
-  smiling: { label: 'SMILING', detail: '全息花瓣轻轻呼吸' },
+  'smile-entering': { label: 'AWAKENING', detail: '第一束像素雨正在落下' },
+  smiling: { label: 'SMILING', detail: '彩色数字雨随笑容流动' },
   'laugh-entering': { label: 'CHARGING', detail: '快乐能量正在过载' },
   laughing: { label: 'LAUGHING', detail: '准备绽放' },
   celebrating: { label: 'OVERLOAD', detail: '快乐超载了' },
@@ -141,7 +141,7 @@ export default function Home() {
           : interactionState === 'smiling'
             ? interactionDiagnostics.expressionEnergy > 0.64
               ? '再开心一点，让快乐升级'
-              : '全息花瓣正在生长'
+              : '彩色像素雨正在苏醒'
             : interactionState === 'laugh-entering' ||
                 interactionState === 'laughing'
               ? '快乐能量正在过载'
@@ -669,7 +669,8 @@ export default function Home() {
             />
           </span>
           <p className="rain-help">
-            嘴角星芒 → 脸颊光丝 → 眼角全息花瓣 → 头后未闭合光弧 · 按 S 测试
+            彩色小色块由稀到密下落 → 大笑前减速聚向头部 → 接续像素烟花 · 按 S
+            测试
           </p>
           {effectsError ? <p className="rain-error">{effectsError}</p> : null}
         </div>

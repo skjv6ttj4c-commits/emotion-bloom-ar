@@ -4,6 +4,8 @@ export const EMOTION_BLOOM = {
   cyan: 0x25f4ee,
   hotPink: 0xfe2c55,
   violet: 0x8a4fff,
+  mint: 0x20e6a4,
+  orange: 0xff7a45,
   glass: 0xf8fbff,
 } as const;
 
@@ -31,6 +33,8 @@ export const SMILE_PALETTE = [
   CANDY_BLOOM.pink,
   CANDY_BLOOM.white,
   CANDY_BLOOM.gold,
+  EMOTION_BLOOM.mint,
+  EMOTION_BLOOM.orange,
 ] as const;
 
 export const LAUGH_PALETTE = [
@@ -42,6 +46,8 @@ export const LAUGH_PALETTE = [
   CANDY_BLOOM.ice,
   CANDY_BLOOM.gold,
   CANDY_BLOOM.white,
+  EMOTION_BLOOM.mint,
+  EMOTION_BLOOM.orange,
 ] as const;
 
 export type VisualTextureLibrary = {

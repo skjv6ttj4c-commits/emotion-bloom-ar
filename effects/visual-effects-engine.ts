@@ -12,10 +12,7 @@ import {
 } from './emotion-bloom/emotion-bloom-system';
 import { PerformanceGovernor } from './performance-governor';
 import { EmotionStoryDirector } from './emotion-story-director';
-import { LiquidLaughSystem } from './liquid/liquid-laugh-system';
-import { LiquidSmileSystem } from './liquid/liquid-smile-system';
 import type { QualityLevel } from './spring-config';
-import type { VisualVersion } from './visual-version';
 import {
   createVisualTextureLibrary,
   destroyVisualTextureLibrary,
@@ -41,10 +38,7 @@ export class VisualEffectsEngine {
   private readonly onMetrics?: (metrics: VisualEffectsMetrics) => void;
   private emotionBloom: EmotionBloomSystem | null = null;
   private fireworks: FireworkSystem | null = null;
-  private liquidSmile: LiquidSmileSystem | null = null;
-  private liquidLaugh: LiquidLaughSystem | null = null;
-  private storyDirectorV1: EmotionStoryDirector | null = null;
-  private storyDirectorV2: EmotionStoryDirector | null = null;
+  private storyDirector: EmotionStoryDirector | null = null;
   private performanceGovernor: PerformanceGovernor | null = null;
   private textures: VisualTextureLibrary | null = null;
   private currentQuality: QualityLevel = 'high';
@@ -52,7 +46,6 @@ export class VisualEffectsEngine {
   private initialized = false;
   private disposed = false;
   private impactTimer = 0;
-  private visualVersion: VisualVersion = 'v2';
 
   constructor(host: HTMLElement, options: VisualEffectsEngineOptions = {}) {
     this.host = host;
@@ -98,45 +91,26 @@ export class VisualEffectsEngine {
       reducedDevice ? 220 : 320,
       this.textures,
     );
-    this.liquidSmile = new LiquidSmileSystem(this.textures);
-    this.liquidLaugh = new LiquidLaughSystem(this.textures);
-    this.storyDirectorV1 = new EmotionStoryDirector(
+    this.storyDirector = new EmotionStoryDirector(
       this.emotionBloom,
       this.fireworks,
     );
-    this.storyDirectorV2 = new EmotionStoryDirector(
-      this.liquidSmile,
-      this.liquidLaugh,
-    );
-    this.storyDirectorV1.setQuality(this.currentQuality);
-    this.storyDirectorV2.setQuality(this.currentQuality);
+    this.storyDirector.setQuality(this.currentQuality);
     this.app.stage.addChild(
       this.emotionBloom.container,
       this.fireworks.container,
-      this.liquidSmile.container,
-      this.liquidLaugh.container,
     );
-    this.applyVersionVisibility();
     this.app.ticker.add(this.tick);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.publishMetrics(performance.now());
   }
 
   setStoryState(state: InteractionState, energy: number) {
-    this.storyDirectorV1?.setStoryState(state, energy);
-    this.storyDirectorV2?.setStoryState(state, energy);
-  }
-
-  setVisualVersion(version: VisualVersion) {
-    this.visualVersion = version;
-    this.applyVersionVisibility();
-    this.publishMetrics(performance.now());
+    this.storyDirector?.setStoryState(state, energy);
   }
 
   handleTransition(transition: TransitionRecord) {
-    const director =
-      this.visualVersion === 'v2' ? this.storyDirectorV2 : this.storyDirectorV1;
-    const triggered = director?.consumeTransition(
+    const triggered = this.storyDirector?.consumeTransition(
       transition,
       this.app.screen.width,
       this.app.screen.height,
@@ -150,8 +124,6 @@ export class VisualEffectsEngine {
   setHeadCollider(collider: HeadCollider) {
     this.emotionBloom?.setHeadCollider(collider);
     this.fireworks?.setHeadCollider(collider);
-    this.liquidSmile?.setHeadCollider(collider);
-    this.liquidLaugh?.setHeadCollider(collider);
   }
 
   destroy() {
@@ -167,14 +139,9 @@ export class VisualEffectsEngine {
     this.app.ticker.remove(this.tick);
     this.emotionBloom?.destroy();
     this.fireworks?.destroy();
-    this.liquidSmile?.destroy();
-    this.liquidLaugh?.destroy();
     this.emotionBloom = null;
     this.fireworks = null;
-    this.liquidSmile = null;
-    this.liquidLaugh = null;
-    this.storyDirectorV1 = null;
-    this.storyDirectorV2 = null;
+    this.storyDirector = null;
     this.performanceGovernor = null;
     this.app.destroy(true, { children: true });
     if (this.textures) destroyVisualTextureLibrary(this.textures);
@@ -186,21 +153,15 @@ export class VisualEffectsEngine {
     const now = performance.now();
     const width = this.app.screen.width;
     const height = this.app.screen.height;
-    if (this.visualVersion === 'v2') {
-      this.liquidSmile?.update(deltaSeconds, now, width, height);
-      this.liquidLaugh?.update(deltaSeconds, now, width, height);
-    } else {
-      this.emotionBloom?.update(deltaSeconds, now, width, height);
-      this.fireworks?.update(deltaSeconds, now, width, height);
-    }
+    this.emotionBloom?.update(deltaSeconds, now, width, height);
+    this.fireworks?.update(deltaSeconds, now, width, height);
 
     const nextQuality =
       this.performanceGovernor?.sample(this.app.ticker.FPS, now) ??
       this.currentQuality;
     if (nextQuality !== this.currentQuality) {
       this.currentQuality = nextQuality;
-      this.storyDirectorV1?.setQuality(nextQuality);
-      this.storyDirectorV2?.setQuality(nextQuality);
+      this.storyDirector?.setQuality(nextQuality);
     }
     if (now - this.lastMetricsAt >= METRICS_INTERVAL_MS) {
       this.publishMetrics(now);
@@ -212,9 +173,7 @@ export class VisualEffectsEngine {
     this.onMetrics?.({
       fps: this.app.ticker.FPS,
       quality: this.currentQuality,
-      bloom: (this.visualVersion === 'v2'
-        ? this.liquidSmile?.getMetrics()
-        : this.emotionBloom?.getMetrics()) ?? {
+      bloom: this.emotionBloom?.getMetrics() ?? {
         activeElements: 0,
         capacity: 117,
         intensity: 0,
@@ -222,9 +181,7 @@ export class VisualEffectsEngine {
         stage: 'idle',
         dissolving: false,
       },
-      fireworks: (this.visualVersion === 'v2'
-        ? this.liquidLaugh?.getMetrics()
-        : this.fireworks?.getMetrics()) ?? {
+      fireworks: this.fireworks?.getMetrics() ?? {
         activeParticles: 0,
         capacity: 0,
         triggerCount: 0,
@@ -242,15 +199,6 @@ export class VisualEffectsEngine {
     if (document.hidden) this.app.ticker.stop();
     else this.app.ticker.start();
   };
-
-  private applyVersionVisibility() {
-    if (!this.initialized) return;
-    const showV2 = this.visualVersion === 'v2';
-    if (this.emotionBloom) this.emotionBloom.container.visible = !showV2;
-    if (this.fireworks) this.fireworks.container.visible = !showV2;
-    if (this.liquidSmile) this.liquidSmile.container.visible = showV2;
-    if (this.liquidLaugh) this.liquidLaugh.container.visible = showV2;
-  }
 
   private playImpact(kind: 'smile' | 'laugh') {
     const stage = this.host.closest<HTMLElement>('.stage');

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { useCamera } from '@/camera/use-camera';
 import { useFaceLandmarker } from '@/face/use-face-landmarker';
@@ -13,13 +14,12 @@ import {
 } from '@/interaction/use-interaction-state';
 import { DEFAULT_STATE_MACHINE_SETTINGS } from '@/interaction/expression-state-machine';
 import { useVisualEffects } from '@/effects/use-visual-effects';
-import type { VisualVersion } from '@/effects/visual-version';
 
 const statusCopy = {
-  idle: '等待开始',
-  requesting: '正在请求权限',
-  active: '摄像头已连接',
-  error: '需要处理',
+  idle: 'STANDBY',
+  requesting: 'CONNECTING',
+  active: 'CAMERA LIVE',
+  error: 'ACTION NEEDED',
 } as const;
 
 const faceStatusCopy = {
@@ -48,9 +48,42 @@ const simulationCopy: Record<SimulationMode, string> = {
   laugh: '大笑',
 };
 
+const expressionGuides = [
+  {
+    key: 'smile',
+    label: 'SMILE',
+    copy: 'Hey~ welcome in!',
+    image: '/guides/01-smile.png',
+  },
+  {
+    key: 'laugh',
+    label: 'LAUGH',
+    copy: "LMAO! That's hilarious!",
+    image: '/guides/02-laugh.png',
+  },
+  {
+    key: 'surprise',
+    label: 'SURPRISE',
+    copy: 'OMG—wait, WAIT!',
+    image: '/guides/03-surprise.png',
+  },
+  {
+    key: 'salute',
+    label: 'SALUTE',
+    copy: 'SALUTE! o7',
+    image: '/guides/04-salute.png',
+  },
+  {
+    key: 'heart',
+    label: 'HEART',
+    copy: "Love y'all",
+    image: '/guides/05-heart.png',
+  },
+] as const;
+
 export default function Home() {
   const [debugOpen, setDebugOpen] = useState(false);
-  const [visualVersion, setVisualVersion] = useState<VisualVersion>('v2');
+  const [manualGuide, setManualGuide] = useState(0);
   const [expressionSettings, setExpressionSettings] =
     useState<ExpressionSettings>(DEFAULT_EXPRESSION_SETTINGS);
   const {
@@ -114,7 +147,6 @@ export default function Home() {
     interactionDiagnostics.expressionEnergy,
     transitions[0],
     faceMetrics.headCollider,
-    visualVersion,
   );
   const facePipelineStatus =
     faceStatus === 'running' && calibration.status !== 'ready'
@@ -134,47 +166,29 @@ export default function Home() {
             : !faceMetrics.signal.accepted
               ? '人脸质量不足：请正对镜头并靠近一些'
               : interactionDiagnostics.blocker;
-  const springCue =
-    interactionState === 'no-face'
-      ? '回到镜头前，让光找到你'
-      : interactionState === 'neutral'
-        ? visualVersion === 'v2'
-          ? '笑一下，唤醒荧光雨'
-          : '笑一下，点亮情绪'
-        : interactionState === 'smile-entering'
-          ? visualVersion === 'v2'
-            ? '液态雨滴正在凝结'
-            : '嘴角发光了'
-          : interactionState === 'smiling'
-            ? interactionDiagnostics.expressionEnergy > 0.64
-              ? visualVersion === 'v2'
-                ? '再开心一点，让光球绽放'
-                : '再开心一点，让快乐升级'
-              : visualVersion === 'v2'
-                ? '液态荧光雨正在生长'
-                : '彩色像素雨正在苏醒'
-            : interactionState === 'laugh-entering' ||
-                interactionState === 'laughing'
-              ? visualVersion === 'v2'
-                ? '液态光球正在蓄能'
-                : '快乐能量正在过载'
-              : interactionState === 'celebrating'
-                ? visualVersion === 'v2'
-                  ? '液态雕塑绽放了！'
-                  : '快乐超载！'
-                : '余韵正在落下';
+  const selectedGuide = ['smile-entering', 'smiling'].includes(interactionState)
+    ? 0
+    : ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState)
+      ? 1
+      : manualGuide;
+  const activeGuide = expressionGuides[selectedGuide];
   const experienceGuide =
     faceStatus === 'loading'
-      ? '正在准备表情体验…'
+      ? 'LOADING FACE MODEL…'
       : faceStatus === 'error'
-        ? '表情识别暂不可用'
+        ? 'FACE TRACKING IS UNAVAILABLE'
         : !faceMetrics.hasFace
-          ? '请将脸移入画面中央'
+          ? 'MOVE INTO FRAME'
           : calibration.status !== 'ready'
-            ? calibrationInstruction
+            ? calibration.status === 'neutral'
+              ? 'LOOK AT THE CAMERA AND RELAX'
+              : calibration.status === 'smile-prompt' ||
+                  calibration.status === 'smile-capturing'
+                ? 'GIVE US ONE NATURAL SMILE'
+                : 'OPEN YOUR MOUTH ONCE FOR CALIBRATION'
             : !faceMetrics.signal.accepted
-              ? '请正对镜头，稍微靠近一些'
-              : springCue;
+              ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
+              : activeGuide.copy;
   const guideTone =
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'
@@ -222,42 +236,23 @@ export default function Home() {
 
   return (
     <main
-      className={`app-shell visual-${visualVersion} camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}
+      className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}
     >
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
 
       <header className="topbar">
-        <a className="brand" href="#stage" aria-label="Emotion Bloom 主页">
+        <a className="brand" href="#stage" aria-label="Pixel Live home">
           <span className="brand-mark" aria-hidden="true">
             <span />
           </span>
-          <span>SMILE BRINGS SPRING</span>
+          <span>PIXEL LIVE</span>
         </a>
         <output className="status-pill">
           <span className={`status-dot ${status}`} aria-hidden="true" />
           {statusCopy[status]}
         </output>
         <div className="topbar-actions">
-          <fieldset className="version-switch">
-            <legend>视觉版本</legend>
-            <button
-              type="button"
-              className={visualVersion === 'v1' ? 'is-active' : ''}
-              aria-pressed={visualVersion === 'v1'}
-              onClick={() => setVisualVersion('v1')}
-            >
-              1.0
-            </button>
-            <button
-              type="button"
-              className={visualVersion === 'v2' ? 'is-active' : ''}
-              aria-pressed={visualVersion === 'v2'}
-              onClick={() => setVisualVersion('v2')}
-            >
-              2.0
-            </button>
-          </fieldset>
           <button
             className="icon-button"
             type="button"
@@ -305,11 +300,23 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="stage-copy">
-          <p className="eyebrow">EMOTION BLOOM</p>
-          <h1 id="stage-title">笑容，让情绪绽放</h1>
-          <p className="stage-description">微笑嘴角生花，大笑快乐超载</p>
-        </div>
+        {!isActive ? (
+          <div className="stage-copy">
+            <p className="eyebrow">FACE-LED LIVE EFFECTS / 001</p>
+            <h1 id="stage-title">
+              WELCOME BACK
+              <br />
+              TO THE LIVE ROOM.
+            </h1>
+            <p className="stage-description">
+              Turn on your camera. Your expressions run the show.
+            </p>
+          </div>
+        ) : (
+          <h1 className="visually-hidden" id="stage-title">
+            Pixel Live expression studio
+          </h1>
+        )}
 
         {debugOpen ? (
           <output className="interaction-state-badge">
@@ -332,12 +339,12 @@ export default function Home() {
               !
             </span>
             <div>
-              <p>摄像头连接失败</p>
+              <p>CAMERA UNAVAILABLE</p>
               <h2 id="camera-error-title">{error.title}</h2>
               <span>{error.message}</span>
             </div>
             <button type="button" onClick={startCamera}>
-              重试
+              TRY AGAIN
             </button>
           </section>
         ) : null}
@@ -348,35 +355,64 @@ export default function Home() {
               !
             </span>
             <div>
-              <p>人脸模型异常</p>
-              <h2 id="face-error-title">无法启动表情识别</h2>
+              <p>FACE MODEL ERROR</p>
+              <h2 id="face-error-title">Expression tracking could not start</h2>
               <span>{faceError}</span>
             </div>
             <button type="button" onClick={() => window.location.reload()}>
-              刷新页面
+              RELOAD
             </button>
           </section>
         ) : null}
 
         {isActive && !faceError ? (
-          <output
-            className={`experience-guide guide-${guideTone}`}
-            aria-live="polite"
-            aria-atomic="true"
+          <section
+            className={`expression-guide guide-${guideTone}`}
+            aria-label="Expression guide"
           >
-            <span className="guide-signal" aria-hidden="true" />
-            <strong>{experienceGuide}</strong>
-            {faceStatus === 'running' && calibration.status !== 'ready' ? (
-              <small>{Math.round(calibration.progress * 100)}%</small>
-            ) : null}
-          </output>
+            <div className="expression-guide-copy">
+              <span>
+                {String(selectedGuide + 1).padStart(2, '0')} / 05 ·{' '}
+                {activeGuide.label}
+              </span>
+              <output aria-live="polite" aria-atomic="true">
+                {experienceGuide}
+              </output>
+              {faceStatus === 'running' && calibration.status !== 'ready' ? (
+                <small>{Math.round(calibration.progress * 100)}%</small>
+              ) : null}
+            </div>
+            <ul className="expression-strip">
+              {expressionGuides.map((guide, index) => (
+                <li key={guide.key}>
+                  <button
+                    type="button"
+                    className={selectedGuide === index ? 'is-selected' : ''}
+                    aria-label={`${guide.label}: ${guide.copy}`}
+                    aria-pressed={selectedGuide === index}
+                    onClick={() => setManualGuide(index)}
+                  >
+                    <Image
+                      src={guide.image}
+                      alt=""
+                      width={104}
+                      height={104}
+                      sizes="(max-width: 640px) 54px, 68px"
+                      priority={index < 2}
+                    />
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         <div className="control-dock">
           <button
             className={`primary-action ${isActive ? 'stop-action' : ''}`}
             type="button"
-            aria-label={isActive ? '关闭摄像头' : '启动摄像头体验'}
+            aria-label={isActive ? 'Turn off camera' : 'Open camera'}
             onClick={isActive ? stopCamera : startCamera}
             disabled={isRequesting}
           >
@@ -384,19 +420,19 @@ export default function Home() {
             <span>
               <strong>
                 {isRequesting
-                  ? '正在等待授权…'
+                  ? 'CONNECTING…'
                   : isActive
-                    ? '关闭摄像头'
+                    ? 'END SESSION'
                     : error
-                      ? '重新尝试'
-                      : '开启摄像头'}
+                      ? 'TRY AGAIN'
+                      : 'OPEN CAMERA'}
               </strong>
               <small>
-                {isActive ? '立即停止视频流' : '点击后请求摄像头权限'}
+                {isActive ? 'STOP VIDEO STREAM' : 'CLICK TO JOIN THE ROOM'}
               </small>
             </span>
           </button>
-          <p>表情识别仅在本机浏览器中完成，不上传人脸画面。</p>
+          <p>ON-DEVICE FACE TRACKING · NO VIDEO UPLOAD</p>
         </div>
       </section>
 
@@ -658,11 +694,7 @@ export default function Home() {
         </div>
         <div className="debug-section rain-debug-section">
           <div className="section-title-row">
-            <p className="debug-label">
-              {visualVersion === 'v2'
-                ? 'LIQUID GLOW · 微笑 2.0'
-                : 'EMOTION BLOOM · 微笑 1.0'}
-            </p>
+            <p className="debug-label">PIXEL RAIN · 微笑</p>
             <span className={`rain-engine-state ${effectsStatus}`}>
               {effectsStatus.toUpperCase()}
             </span>
@@ -714,19 +746,14 @@ export default function Home() {
             />
           </span>
           <p className="rain-help">
-            {visualVersion === 'v2'
-              ? '果冻雨滴 → 头部软碰撞 → 底部涟漪与四叶花 · 按 S 测试'
-              : '高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按 S 测试'}
+            高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按
+            S 测试
           </p>
           {effectsError ? <p className="rain-error">{effectsError}</p> : null}
         </div>
         <div className="debug-section firework-debug-section">
           <div className="section-title-row">
-            <p className="debug-label">
-              {visualVersion === 'v2'
-                ? 'LIQUID SCULPTURE · 大笑 2.0'
-                : 'PIXIJS 像素烟花 1.0'}
-            </p>
+            <p className="debug-label">PIXEL FIREWORK · 大笑</p>
             <span className="firework-trigger-chip">ON ENTER · LAUGH</span>
           </div>
           <div className="rain-metrics">
@@ -765,9 +792,8 @@ export default function Home() {
             </span>
           </div>
           <p className="rain-help">
-            {visualVersion === 'v2'
-              ? '底部绿光 → 液态光球 → 圆环、软刺星芒、四叶花与云团 · 按 L 测试'
-              : '顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 · 头部可撞散 · 按 L 测试'}
+            顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 ·
+            头部可撞散 · 按 L 测试
           </p>
         </div>
         <div className="debug-section collider-debug-section">

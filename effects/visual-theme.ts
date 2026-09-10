@@ -64,13 +64,6 @@ export type VisualTextureLibrary = {
   pixelStar: Texture;
   pixelFlower: Texture;
   pixelSmile: Texture;
-  liquidDrop: Texture;
-  liquidOrb: Texture;
-  liquidRing: Texture;
-  liquidStar: Texture;
-  liquidClover: Texture;
-  liquidCloud: Texture;
-  liquidRipple: Texture;
 };
 
 function makeCanvas(width: number, height = width) {
@@ -80,26 +73,6 @@ function makeCanvas(width: number, height = width) {
   const context = canvas.getContext('2d');
   if (!context) throw new Error('当前浏览器无法创建特效纹理。');
   return { canvas, context };
-}
-
-function applyHalftone(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  opacity = 0.12,
-) {
-  context.save();
-  context.globalCompositeOperation = 'source-atop';
-  context.fillStyle = `rgba(21, 37, 92, ${opacity})`;
-  for (let y = 5; y < height; y += 6) {
-    const stagger = Math.floor(y / 6) % 2 === 0 ? 0 : 3;
-    for (let x = 5 + stagger; x < width; x += 6) {
-      context.beginPath();
-      context.arc(x, y, 1.05, 0, Math.PI * 2);
-      context.fill();
-    }
-  }
-  context.restore();
 }
 
 function createCrispTexture(canvas: HTMLCanvasElement) {
@@ -383,196 +356,6 @@ function createPixelSmileTexture() {
   ]);
 }
 
-function createLiquidDropTexture() {
-  const { canvas, context } = makeCanvas(112, 144);
-  const body = context.createLinearGradient(22, 12, 88, 132);
-  body.addColorStop(0, 'rgba(255,255,255,.94)');
-  body.addColorStop(0.28, 'rgba(188,235,255,.82)');
-  body.addColorStop(0.7, 'rgba(107,87,255,.72)');
-  body.addColorStop(1, 'rgba(33,12,85,.32)');
-  context.shadowColor = 'rgba(81,255,178,.82)';
-  context.shadowBlur = 18;
-  context.fillStyle = body;
-  context.beginPath();
-  context.moveTo(57, 8);
-  context.bezierCurveTo(78, 38, 98, 66, 91, 101);
-  context.bezierCurveTo(86, 128, 62, 140, 38, 127);
-  context.bezierCurveTo(12, 113, 15, 78, 29, 51);
-  context.bezierCurveTo(39, 31, 48, 16, 57, 8);
-  context.closePath();
-  context.fill();
-  applyHalftone(context, canvas.width, canvas.height, 0.12);
-  context.shadowBlur = 0;
-  const shine = context.createLinearGradient(32, 26, 72, 98);
-  shine.addColorStop(0, 'rgba(255,255,255,.9)');
-  shine.addColorStop(0.45, 'rgba(255,255,255,.18)');
-  shine.addColorStop(1, 'rgba(255,255,255,0)');
-  context.strokeStyle = shine;
-  context.lineWidth = 5;
-  context.lineCap = 'round';
-  context.beginPath();
-  context.bezierCurveTo(38, 38, 30, 67, 37, 86);
-  context.stroke();
-  return Texture.from(canvas);
-}
-
-function createLiquidOrbTexture() {
-  const { canvas, context } = makeCanvas(192);
-  const glow = context.createRadialGradient(96, 96, 18, 96, 96, 92);
-  glow.addColorStop(0, 'rgba(255,255,255,.96)');
-  glow.addColorStop(0.18, 'rgba(188,235,255,.9)');
-  glow.addColorStop(0.48, 'rgba(116,80,255,.78)');
-  glow.addColorStop(0.7, 'rgba(255,46,154,.62)');
-  glow.addColorStop(0.86, 'rgba(255,225,71,.38)');
-  glow.addColorStop(1, 'rgba(36,255,164,0)');
-  context.shadowColor = 'rgba(60,255,168,.7)';
-  context.shadowBlur = 24;
-  context.fillStyle = glow;
-  context.beginPath();
-  context.arc(96, 96, 78, 0, Math.PI * 2);
-  context.fill();
-  applyHalftone(context, canvas.width, canvas.height, 0.14);
-  context.shadowBlur = 0;
-  context.fillStyle = 'rgba(255,255,255,.7)';
-  context.beginPath();
-  context.ellipse(72, 60, 24, 12, -0.55, 0, Math.PI * 2);
-  context.fill();
-  return Texture.from(canvas);
-}
-
-function createLiquidRingTexture() {
-  const { canvas, context } = makeCanvas(224);
-  const gradient = context.createLinearGradient(28, 24, 194, 204);
-  gradient.addColorStop(0, 'rgba(245,255,255,.92)');
-  gradient.addColorStop(0.25, 'rgba(72,210,255,.84)');
-  gradient.addColorStop(0.52, 'rgba(135,68,255,.82)');
-  gradient.addColorStop(0.76, 'rgba(255,48,166,.82)');
-  gradient.addColorStop(1, 'rgba(255,226,62,.86)');
-  context.shadowColor = 'rgba(48,255,167,.72)';
-  context.shadowBlur = 20;
-  context.strokeStyle = gradient;
-  context.lineWidth = 18;
-  context.beginPath();
-  context.ellipse(112, 112, 84, 76, -0.14, 0, Math.PI * 2);
-  context.stroke();
-  applyHalftone(context, canvas.width, canvas.height, 0.15);
-  context.shadowBlur = 0;
-  context.strokeStyle = 'rgba(255,255,255,.62)';
-  context.lineWidth = 3;
-  context.beginPath();
-  context.ellipse(112, 106, 78, 68, -0.14, Math.PI * 1.08, Math.PI * 1.76);
-  context.stroke();
-  return Texture.from(canvas);
-}
-
-function createLiquidStarTexture() {
-  const { canvas, context } = makeCanvas(224);
-  const gradient = context.createRadialGradient(98, 88, 8, 112, 112, 104);
-  gradient.addColorStop(0, 'rgba(255,255,255,.94)');
-  gradient.addColorStop(0.28, 'rgba(168,223,255,.9)');
-  gradient.addColorStop(0.58, 'rgba(124,67,255,.76)');
-  gradient.addColorStop(0.82, 'rgba(255,49,164,.62)');
-  gradient.addColorStop(1, 'rgba(255,227,69,.38)');
-  context.shadowColor = 'rgba(65,255,174,.76)';
-  context.shadowBlur = 22;
-  context.fillStyle = gradient;
-  context.beginPath();
-  const points = 16;
-  for (let index = 0; index <= points; index += 1) {
-    const angle = -Math.PI / 2 + (index / points) * Math.PI * 2;
-    const radius = index % 2 === 0 ? 94 : 47;
-    const x = 112 + Math.cos(angle) * radius;
-    const y = 112 + Math.sin(angle) * radius;
-    if (index === 0) context.moveTo(x, y);
-    else context.quadraticCurveTo(112, 112, x, y);
-  }
-  context.closePath();
-  context.fill();
-  applyHalftone(context, canvas.width, canvas.height, 0.13);
-  return Texture.from(canvas);
-}
-
-function createLiquidCloverTexture() {
-  const { canvas, context } = makeCanvas(224);
-  context.translate(112, 112);
-  context.shadowColor = 'rgba(68,255,171,.72)';
-  context.shadowBlur = 20;
-  for (let index = 0; index < 4; index += 1) {
-    context.save();
-    context.rotate((index * Math.PI) / 2);
-    const gradient = context.createLinearGradient(0, -88, 0, 12);
-    gradient.addColorStop(0, 'rgba(247,255,255,.9)');
-    gradient.addColorStop(0.3, 'rgba(150,220,255,.82)');
-    gradient.addColorStop(0.58, 'rgba(116,70,247,.76)');
-    gradient.addColorStop(0.82, 'rgba(255,52,158,.58)');
-    gradient.addColorStop(1, 'rgba(255,226,67,.4)');
-    context.fillStyle = gradient;
-    context.beginPath();
-    context.moveTo(0, 9);
-    context.bezierCurveTo(-52, -10, -48, -74, 0, -91);
-    context.bezierCurveTo(48, -74, 52, -10, 0, 9);
-    context.fill();
-    context.restore();
-  }
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  applyHalftone(context, canvas.width, canvas.height, 0.13);
-  context.translate(112, 112);
-  const core = context.createRadialGradient(0, 0, 1, 0, 0, 25);
-  core.addColorStop(0, 'rgba(255,246,151,1)');
-  core.addColorStop(0.38, 'rgba(255,221,70,.86)');
-  core.addColorStop(1, 'rgba(61,255,174,0)');
-  context.fillStyle = core;
-  context.beginPath();
-  context.arc(0, 0, 26, 0, Math.PI * 2);
-  context.fill();
-  return Texture.from(canvas);
-}
-
-function createLiquidCloudTexture() {
-  const { canvas, context } = makeCanvas(240, 190);
-  const gradient = context.createLinearGradient(36, 28, 204, 164);
-  gradient.addColorStop(0, 'rgba(255,255,255,.88)');
-  gradient.addColorStop(0.27, 'rgba(147,224,255,.84)');
-  gradient.addColorStop(0.54, 'rgba(119,71,255,.74)');
-  gradient.addColorStop(0.78, 'rgba(255,53,164,.62)');
-  gradient.addColorStop(1, 'rgba(255,224,64,.4)');
-  context.shadowColor = 'rgba(56,255,174,.7)';
-  context.shadowBlur = 24;
-  context.fillStyle = gradient;
-  const lobes = [
-    [58, 112, 42],
-    [82, 73, 50],
-    [127, 60, 55],
-    [174, 82, 48],
-    [190, 120, 39],
-    [137, 128, 57],
-    [93, 130, 46],
-  ];
-  for (const [x, y, radius] of lobes) {
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fill();
-  }
-  applyHalftone(context, canvas.width, canvas.height, 0.12);
-  return Texture.from(canvas);
-}
-
-function createLiquidRippleTexture() {
-  const { canvas, context } = makeCanvas(192, 96);
-  const gradient = context.createLinearGradient(18, 48, 174, 48);
-  gradient.addColorStop(0, 'rgba(50,255,169,0)');
-  gradient.addColorStop(0.5, 'rgba(184,255,232,.92)');
-  gradient.addColorStop(1, 'rgba(50,255,169,0)');
-  context.shadowColor = 'rgba(50,255,169,.78)';
-  context.shadowBlur = 12;
-  context.strokeStyle = gradient;
-  context.lineWidth = 6;
-  context.beginPath();
-  context.ellipse(96, 48, 78, 24, 0, 0, Math.PI * 2);
-  context.stroke();
-  return Texture.from(canvas);
-}
-
 export function createVisualTextureLibrary(): VisualTextureLibrary {
   return {
     softDot: createSoftDotTexture(),
@@ -588,13 +371,6 @@ export function createVisualTextureLibrary(): VisualTextureLibrary {
     pixelStar: createPixelStarTexture(),
     pixelFlower: createPixelFlowerTexture(),
     pixelSmile: createPixelSmileTexture(),
-    liquidDrop: createLiquidDropTexture(),
-    liquidOrb: createLiquidOrbTexture(),
-    liquidRing: createLiquidRingTexture(),
-    liquidStar: createLiquidStarTexture(),
-    liquidClover: createLiquidCloverTexture(),
-    liquidCloud: createLiquidCloudTexture(),
-    liquidRipple: createLiquidRippleTexture(),
   };
 }
 

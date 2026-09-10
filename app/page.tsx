@@ -172,6 +172,9 @@ export default function Home() {
       ? 1
       : manualGuide;
   const activeGuide = expressionGuides[selectedGuide];
+  const expressionWasRecognized =
+    ['smile-entering', 'smiling'].includes(interactionState) ||
+    ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState);
   const experienceGuide =
     faceStatus === 'loading'
       ? 'LOADING FACE MODEL…'
@@ -188,7 +191,9 @@ export default function Home() {
                 : 'OPEN YOUR MOUTH ONCE FOR CALIBRATION'
             : !faceMetrics.signal.accepted
               ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
-              : activeGuide.copy;
+              : expressionWasRecognized
+                ? activeGuide.copy
+                : 'TRY A MOVE';
   const guideTone =
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'
@@ -366,46 +371,52 @@ export default function Home() {
         ) : null}
 
         {isActive && !faceError ? (
-          <section
-            className={`expression-guide guide-${guideTone}`}
-            aria-label="Expression guide"
-          >
-            <div className="expression-guide-copy">
-              <span>
-                {String(selectedGuide + 1).padStart(2, '0')} / 05 ·{' '}
-                {activeGuide.label}
-              </span>
-              <output aria-live="polite" aria-atomic="true">
-                {experienceGuide}
-              </output>
+          <>
+            <section
+              className={`expression-guide guide-${guideTone}`}
+              aria-label="Expression guide"
+            >
+              <span className="expression-guide-label">MOVES / 05</span>
+              <ul className="expression-strip">
+                {expressionGuides.map((guide, index) => (
+                  <li key={guide.key}>
+                    <button
+                      type="button"
+                      className={selectedGuide === index ? 'is-selected' : ''}
+                      aria-label={`${guide.label}: ${guide.copy}`}
+                      aria-pressed={selectedGuide === index}
+                      onClick={() => setManualGuide(index)}
+                    >
+                      <Image
+                        src={guide.image}
+                        alt=""
+                        width={104}
+                        height={104}
+                        sizes="(max-width: 640px) 44px, 64px"
+                        priority={index < 2}
+                      />
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <output
+              className={`expression-feedback ${expressionWasRecognized ? 'is-hit' : ''}`}
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <small>
+                {expressionWasRecognized
+                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 05 · ${activeGuide.label}`
+                  : 'PIXEL LIVE'}
+              </small>
+              <strong>{experienceGuide}</strong>
               {faceStatus === 'running' && calibration.status !== 'ready' ? (
-                <small>{Math.round(calibration.progress * 100)}%</small>
+                <span>{Math.round(calibration.progress * 100)}%</span>
               ) : null}
-            </div>
-            <ul className="expression-strip">
-              {expressionGuides.map((guide, index) => (
-                <li key={guide.key}>
-                  <button
-                    type="button"
-                    className={selectedGuide === index ? 'is-selected' : ''}
-                    aria-label={`${guide.label}: ${guide.copy}`}
-                    aria-pressed={selectedGuide === index}
-                    onClick={() => setManualGuide(index)}
-                  >
-                    <Image
-                      src={guide.image}
-                      alt=""
-                      width={104}
-                      height={104}
-                      sizes="(max-width: 640px) 54px, 68px"
-                      priority={index < 2}
-                    />
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
+            </output>
+          </>
         ) : null}
 
         <div className="control-dock">

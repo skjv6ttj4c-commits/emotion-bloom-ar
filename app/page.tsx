@@ -13,6 +13,7 @@ import {
 } from '@/interaction/use-interaction-state';
 import { DEFAULT_STATE_MACHINE_SETTINGS } from '@/interaction/expression-state-machine';
 import { useVisualEffects } from '@/effects/use-visual-effects';
+import type { VisualVersion } from '@/effects/visual-version';
 
 const statusCopy = {
   idle: '等待开始',
@@ -49,6 +50,7 @@ const simulationCopy: Record<SimulationMode, string> = {
 
 export default function Home() {
   const [debugOpen, setDebugOpen] = useState(false);
+  const [visualVersion, setVisualVersion] = useState<VisualVersion>('v2');
   const [expressionSettings, setExpressionSettings] =
     useState<ExpressionSettings>(DEFAULT_EXPRESSION_SETTINGS);
   const {
@@ -112,6 +114,7 @@ export default function Home() {
     interactionDiagnostics.expressionEnergy,
     transitions[0],
     faceMetrics.headCollider,
+    visualVersion,
   );
   const facePipelineStatus =
     faceStatus === 'running' && calibration.status !== 'ready'
@@ -135,18 +138,30 @@ export default function Home() {
     interactionState === 'no-face'
       ? '回到镜头前，让光找到你'
       : interactionState === 'neutral'
-        ? '笑一下，点亮情绪'
+        ? visualVersion === 'v2'
+          ? '笑一下，唤醒荧光雨'
+          : '笑一下，点亮情绪'
         : interactionState === 'smile-entering'
-          ? '嘴角发光了'
+          ? visualVersion === 'v2'
+            ? '液态雨滴正在凝结'
+            : '嘴角发光了'
           : interactionState === 'smiling'
             ? interactionDiagnostics.expressionEnergy > 0.64
-              ? '再开心一点，让快乐升级'
-              : '彩色像素雨正在苏醒'
+              ? visualVersion === 'v2'
+                ? '再开心一点，让光球绽放'
+                : '再开心一点，让快乐升级'
+              : visualVersion === 'v2'
+                ? '液态荧光雨正在生长'
+                : '彩色像素雨正在苏醒'
             : interactionState === 'laugh-entering' ||
                 interactionState === 'laughing'
-              ? '快乐能量正在过载'
+              ? visualVersion === 'v2'
+                ? '液态光球正在蓄能'
+                : '快乐能量正在过载'
               : interactionState === 'celebrating'
-                ? '快乐超载！'
+                ? visualVersion === 'v2'
+                  ? '液态雕塑绽放了！'
+                  : '快乐超载！'
                 : '余韵正在落下';
   const experienceGuide =
     faceStatus === 'loading'
@@ -207,7 +222,7 @@ export default function Home() {
 
   return (
     <main
-      className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}
+      className={`app-shell visual-${visualVersion} camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}
     >
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
@@ -223,15 +238,36 @@ export default function Home() {
           <span className={`status-dot ${status}`} aria-hidden="true" />
           {statusCopy[status]}
         </output>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={debugOpen ? '关闭调试面板' : '打开调试面板'}
-          aria-expanded={debugOpen}
-          onClick={() => setDebugOpen((current) => !current)}
-        >
-          <span aria-hidden="true">{debugOpen ? '×' : '•••'}</span>
-        </button>
+        <div className="topbar-actions">
+          <fieldset className="version-switch">
+            <legend>视觉版本</legend>
+            <button
+              type="button"
+              className={visualVersion === 'v1' ? 'is-active' : ''}
+              aria-pressed={visualVersion === 'v1'}
+              onClick={() => setVisualVersion('v1')}
+            >
+              1.0
+            </button>
+            <button
+              type="button"
+              className={visualVersion === 'v2' ? 'is-active' : ''}
+              aria-pressed={visualVersion === 'v2'}
+              onClick={() => setVisualVersion('v2')}
+            >
+              2.0
+            </button>
+          </fieldset>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label={debugOpen ? '关闭调试面板' : '打开调试面板'}
+            aria-expanded={debugOpen}
+            onClick={() => setDebugOpen((current) => !current)}
+          >
+            <span aria-hidden="true">{debugOpen ? '×' : '•••'}</span>
+          </button>
+        </div>
       </header>
 
       <section className="stage" id="stage" aria-labelledby="stage-title">
@@ -622,7 +658,11 @@ export default function Home() {
         </div>
         <div className="debug-section rain-debug-section">
           <div className="section-title-row">
-            <p className="debug-label">EMOTION BLOOM · 微笑</p>
+            <p className="debug-label">
+              {visualVersion === 'v2'
+                ? 'LIQUID GLOW · 微笑 2.0'
+                : 'EMOTION BLOOM · 微笑 1.0'}
+            </p>
             <span className={`rain-engine-state ${effectsStatus}`}>
               {effectsStatus.toUpperCase()}
             </span>
@@ -674,14 +714,19 @@ export default function Home() {
             />
           </span>
           <p className="rain-help">
-            高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按
-            S 测试
+            {visualVersion === 'v2'
+              ? '果冻雨滴 → 头部软碰撞 → 底部涟漪与四叶花 · 按 S 测试'
+              : '高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按 S 测试'}
           </p>
           {effectsError ? <p className="rain-error">{effectsError}</p> : null}
         </div>
         <div className="debug-section firework-debug-section">
           <div className="section-title-row">
-            <p className="debug-label">PIXIJS 像素烟花</p>
+            <p className="debug-label">
+              {visualVersion === 'v2'
+                ? 'LIQUID SCULPTURE · 大笑 2.0'
+                : 'PIXIJS 像素烟花 1.0'}
+            </p>
             <span className="firework-trigger-chip">ON ENTER · LAUGH</span>
           </div>
           <div className="rain-metrics">
@@ -720,8 +765,9 @@ export default function Home() {
             </span>
           </div>
           <p className="rain-help">
-            顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 ·
-            头部可撞散 · 按 L 测试
+            {visualVersion === 'v2'
+              ? '底部绿光 → 液态光球 → 圆环、软刺星芒、四叶花与云团 · 按 L 测试'
+              : '顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 · 头部可撞散 · 按 L 测试'}
           </p>
         </div>
         <div className="debug-section collider-debug-section">

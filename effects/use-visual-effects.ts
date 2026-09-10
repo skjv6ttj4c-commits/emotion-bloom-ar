@@ -8,6 +8,7 @@ import type {
   VisualEffectsEngine as VisualEffectsEngineType,
   VisualEffectsMetrics,
 } from './visual-effects-engine';
+import type { VisualVersion } from './visual-version';
 
 export type VisualEffectsStatus = 'loading' | 'ready' | 'error';
 
@@ -39,11 +40,13 @@ export function useVisualEffects(
   expressionEnergy: number,
   latestTransition: TransitionRecord | undefined,
   headCollider: HeadCollider,
+  visualVersion: VisualVersion,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VisualEffectsEngineType | null>(null);
   const storyRef = useRef({ state, expressionEnergy });
   const colliderRef = useRef(headCollider);
+  const versionRef = useRef(visualVersion);
   const readyRef = useRef(false);
   const lastTransitionIdRef = useRef(0);
   const pendingTransitionsRef = useRef<TransitionRecord[]>([]);
@@ -70,6 +73,11 @@ export function useVisualEffects(
   }, [headCollider]);
 
   useEffect(() => {
+    versionRef.current = visualVersion;
+    engineRef.current?.setVisualVersion(visualVersion);
+  }, [visualVersion]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     let cancelled = false;
@@ -82,6 +90,7 @@ export function useVisualEffects(
         engineRef.current = engine;
         await engine.init();
         if (cancelled) return;
+        engine.setVisualVersion(versionRef.current);
         engine.setStoryState(
           storyRef.current.state,
           storyRef.current.expressionEnergy,

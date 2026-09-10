@@ -148,6 +148,22 @@ export default function Home() {
               : interactionState === 'celebrating'
                 ? '快乐超载！'
                 : '余韵正在落下';
+  const experienceGuide =
+    faceStatus === 'loading'
+      ? '正在准备表情体验…'
+      : faceStatus === 'error'
+        ? '表情识别暂不可用'
+        : !faceMetrics.hasFace
+          ? '请将脸移入画面中央'
+          : calibration.status !== 'ready'
+            ? calibrationInstruction
+            : !faceMetrics.signal.accepted
+              ? '请正对镜头，稍微靠近一些'
+              : springCue;
+  const guideTone =
+    faceStatus === 'loading' || calibration.status !== 'ready'
+      ? 'preparing'
+      : interactionState;
 
   function updateExpressionSetting(
     key: keyof ExpressionSettings,
@@ -259,38 +275,20 @@ export default function Home() {
           <p className="stage-description">微笑嘴角生花，大笑快乐超载</p>
         </div>
 
-        {isActive ? (
-          <output className="camera-ready">
-            <span
-              className={`status-dot ${faceStatus === 'error' ? 'error' : faceStatus === 'running' ? 'active' : 'requesting'}`}
-              aria-hidden="true"
-            />
-            {faceStatus === 'loading'
-              ? '正在加载人脸模型…'
-              : faceStatus === 'error'
-                ? '人脸模型加载失败'
-                : !faceMetrics.hasFace
-                  ? '回到镜头前，让光找到你'
-                  : calibration.status !== 'ready'
-                    ? `${calibrationInstruction} · ${Math.round(calibration.progress * 100)}%`
-                    : faceMetrics.signal.accepted
-                      ? '现在，试着笑一笑'
-                      : '请正对镜头并靠近一些'}
+        {debugOpen ? (
+          <output className="interaction-state-badge">
+            <span className="state-orb" aria-hidden="true" />
+            <span>
+              <small>
+                {simulationMode === 'live'
+                  ? 'LIVE STATE'
+                  : `SIMULATION · ${simulationCopy[simulationMode]}`}
+              </small>
+              <strong>{interactionStateCopy[interactionState].label}</strong>
+            </span>
+            <i>{interactionStateCopy[interactionState].detail}</i>
           </output>
         ) : null}
-
-        <output className="interaction-state-badge">
-          <span className="state-orb" aria-hidden="true" />
-          <span>
-            <small>
-              {simulationMode === 'live'
-                ? 'LIVE STATE'
-                : `SIMULATION · ${simulationCopy[simulationMode]}`}
-            </small>
-            <strong>{interactionStateCopy[interactionState].label}</strong>
-          </span>
-          <i>{interactionStateCopy[interactionState].detail}</i>
-        </output>
 
         {error ? (
           <section className="error-card" aria-labelledby="camera-error-title">
@@ -324,10 +322,17 @@ export default function Home() {
           </section>
         ) : null}
 
-        {isActive && calibration.status === 'ready' ? (
-          <output className={`spring-cue cue-${interactionState}`}>
-            <span aria-hidden="true" />
-            {springCue}
+        {isActive && !faceError ? (
+          <output
+            className={`experience-guide guide-${guideTone}`}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="guide-signal" aria-hidden="true" />
+            <strong>{experienceGuide}</strong>
+            {faceStatus === 'running' && calibration.status !== 'ready' ? (
+              <small>{Math.round(calibration.progress * 100)}%</small>
+            ) : null}
           </output>
         ) : null}
 

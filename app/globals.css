@@ -557,23 +557,6 @@ button {
   white-space: nowrap;
 }
 
-.camera-ready {
-  position: absolute;
-  z-index: 5;
-  top: 92px;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  background: rgba(6, 7, 17, 0.55);
-  color: #e4e7f0;
-  font-size: 11px;
-  backdrop-filter: blur(14px);
-}
 .interaction-state-badge {
   position: absolute;
   z-index: 5;
@@ -653,45 +636,75 @@ button {
   color: #ffc2d8;
 }
 
-.spring-cue {
+.experience-guide {
   position: absolute;
   z-index: 6;
-  bottom: max(126px, calc(env(safe-area-inset-bottom) + 112px));
+  bottom: max(128px, calc(env(safe-area-inset-bottom) + 114px));
   left: 50%;
   display: flex;
+  max-width: min(88vw, 520px);
+  min-height: 42px;
   align-items: center;
-  gap: 9px;
-  padding: 9px 15px;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
   transform: translateX(-50%);
-  border: 1px solid rgba(255, 217, 143, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  background: rgba(17, 6, 19, 0.5);
-  box-shadow: 0 12px 40px rgba(7, 2, 10, 0.28);
-  color: rgba(255, 248, 247, 0.92);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  backdrop-filter: blur(14px);
+  background: rgba(7, 8, 18, 0.72);
+  box-shadow: 0 14px 44px rgba(2, 3, 12, 0.38);
+  color: rgba(250, 251, 255, 0.96);
+  white-space: normal;
+  backdrop-filter: blur(18px);
+  animation: guide-enter 320ms ease both;
   transition:
     color 260ms ease,
     border-color 260ms ease,
     background 260ms ease;
 }
-.spring-cue > span {
+.experience-guide strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 590;
+  letter-spacing: 0.035em;
+  line-height: 1.45;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+.experience-guide small {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(226, 230, 242, 0.72);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+}
+.guide-signal {
   width: 6px;
   height: 6px;
+  flex: none;
   border-radius: 50%;
   background: var(--aqua);
   box-shadow:
     0 0 10px rgba(37, 244, 238, 0.9),
     0 0 18px rgba(254, 44, 85, 0.66);
 }
-.cue-smile-entering,
-.cue-smiling {
+.guide-preparing {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(235, 238, 248, 0.84);
+}
+.guide-preparing .guide-signal {
+  animation: status-pulse 1s ease-in-out infinite;
+}
+.guide-smile-entering,
+.guide-smiling {
   border-color: rgba(37, 244, 238, 0.34);
   background: rgba(18, 8, 34, 0.56);
 }
-.cue-celebrating {
+.guide-laugh-entering,
+.guide-laughing,
+.guide-celebrating {
   border-color: rgba(37, 244, 238, 0.6);
   color: #f5f0ff;
   background: rgba(29, 9, 53, 0.68);
@@ -699,6 +712,9 @@ button {
     0 14px 46px rgba(9, 4, 26, 0.4),
     0 0 34px rgba(37, 244, 238, 0.13),
     0 0 44px rgba(254, 44, 85, 0.1);
+}
+.camera-active .control-dock > p {
+  display: none;
 }
 .error-card {
   position: absolute;
@@ -1449,12 +1465,26 @@ button {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+  .experience-guide {
+    animation: none;
+  }
 }
 
 @keyframes status-pulse {
   50% {
     opacity: 0.4;
     transform: scale(0.82);
+  }
+}
+
+@keyframes guide-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 }
 

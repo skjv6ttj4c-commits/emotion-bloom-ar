@@ -1,6 +1,5 @@
 import type { NormalizedLandmark } from '@mediapipe/tasks-vision';
 import { projectLandmarkToCover } from '@/face/head-collider';
-import type { FaceMetrics } from '@/face/use-face-landmarker';
 
 type Size = { width: number; height: number };
 
@@ -9,10 +8,6 @@ export type HandActionSample = {
   heartScore: number;
   heartX: number;
   heartY: number;
-  surpriseDetected: boolean;
-  surpriseScore: number;
-  surpriseX: number;
-  surpriseY: number;
 };
 
 export const EMPTY_HAND_ACTION_SAMPLE: HandActionSample = {
@@ -20,10 +15,6 @@ export const EMPTY_HAND_ACTION_SAMPLE: HandActionSample = {
   heartScore: 0,
   heartX: 0,
   heartY: 0,
-  surpriseDetected: false,
-  surpriseScore: 0,
-  surpriseX: 0,
-  surpriseY: 0,
 };
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -51,18 +42,6 @@ function handScale(hand: NormalizedLandmark[]) {
     distance(wrist, middleMcp),
     distance(indexMcp, pinkyMcp) * 1.35,
   );
-}
-
-function palmCenter(hand: NormalizedLandmark[]) {
-  const indices = [0, 5, 9, 13, 17];
-  const points = indices.map((index) => hand[index]).filter(Boolean);
-  if (points.length !== indices.length) return null;
-  return {
-    x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
-    y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
-    z: 0,
-    visibility: 1,
-  };
 }
 
 function analyzeHeart(
@@ -121,55 +100,10 @@ function analyzeHeart(
   };
 }
 
-function analyzeSurprise(
-  hands: NormalizedLandmark[][],
-  videoSize: Size,
-  viewportSize: Size,
-  face: FaceMetrics,
-) {
-  const mouth = face.mouthRegion;
-  if (!mouth.valid || hands.length === 0) return EMPTY_HAND_ACTION_SAMPLE;
-  let bestProximity = 0;
-  let bestX = mouth.centerX;
-  let bestY = mouth.centerY;
-  for (const hand of hands) {
-    const center = palmCenter(hand);
-    if (!center) continue;
-    const projected = projectLandmarkToCover(center, videoSize, viewportSize);
-    const dx = (projected.x - mouth.centerX) / Math.max(1, mouth.radiusX);
-    const dy = (projected.y - mouth.centerY) / Math.max(1, mouth.radiusY);
-    const normalizedDistance = Math.hypot(dx, dy);
-    const proximity = clamp(1 - normalizedDistance / 2.15);
-    if (proximity > bestProximity) {
-      bestProximity = proximity;
-      bestX = projected.x;
-      bestY = projected.y;
-    }
-  }
-  const expressions = face.expressions;
-  const eyeWide = (expressions.eyeWideLeft + expressions.eyeWideRight) * 0.5;
-  const faceSurprise = clamp(
-    expressions.jawOpen * 0.5 + expressions.browInnerUp * 0.3 + eyeWide * 0.2,
-  );
-  const score = bestProximity * 0.64 + faceSurprise * 0.36;
-  const expressive =
-    expressions.jawOpen >= 0.2 ||
-    expressions.browInnerUp >= 0.2 ||
-    eyeWide >= 0.18;
-  return {
-    ...EMPTY_HAND_ACTION_SAMPLE,
-    surpriseDetected: bestProximity >= 0.52 && expressive && score >= 0.5,
-    surpriseScore: score,
-    surpriseX: bestX,
-    surpriseY: bestY,
-  };
-}
-
 export function analyzeHandActions(
   hands: NormalizedLandmark[][],
   videoSize: Size,
   viewportSize: Size,
-  face: FaceMetrics,
 ): HandActionSample {
   if (
     videoSize.width <= 0 ||
@@ -179,16 +113,5 @@ export function analyzeHandActions(
   ) {
     return EMPTY_HAND_ACTION_SAMPLE;
   }
-  const heart = analyzeHeart(hands, videoSize, viewportSize);
-  const surprise = analyzeSurprise(hands, videoSize, viewportSize, face);
-  return {
-    heartDetected: heart.heartDetected,
-    heartScore: heart.heartScore,
-    heartX: heart.heartX,
-    heartY: heart.heartY,
-    surpriseDetected: surprise.surpriseDetected,
-    surpriseScore: surprise.surpriseScore,
-    surpriseX: surprise.surpriseX,
-    surpriseY: surprise.surpriseY,
-  };
+  return analyzeHeart(hands, videoSize, viewportSize);
 }

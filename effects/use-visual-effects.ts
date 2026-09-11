@@ -34,7 +34,6 @@ const INITIAL_METRICS: VisualEffectsMetrics = {
     phase: 'idle',
   },
   heart: { phase: 'idle', activeHearts: 0, capacity: 33, triggerCount: 0 },
-  surprise: { phase: 'idle', activeElements: 0, triggerCount: 0 },
 };
 
 export function useVisualEffects(

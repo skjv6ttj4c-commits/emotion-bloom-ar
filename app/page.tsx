@@ -54,25 +54,19 @@ const expressionGuides = [
     key: 'smile',
     label: 'SMILE',
     copy: 'Hey~ welcome in!',
-    image: '/guides/01-smile.png',
+    image: '/guides/01-smile.jpg',
   },
   {
     key: 'laugh',
     label: 'LAUGH',
     copy: "LMAO! That's hilarious!",
-    image: '/guides/02-laugh.png',
-  },
-  {
-    key: 'surprise',
-    label: 'SURPRISE',
-    copy: 'OMG—wait, WAIT!',
-    image: '/guides/03-surprise.png',
+    image: '/guides/02-laugh.jpg',
   },
   {
     key: 'heart',
     label: 'HEART',
     copy: "Love y'all",
-    image: '/guides/04-heart.png',
+    image: '/guides/03-heart.jpg',
   },
 ] as const;
 
@@ -102,7 +96,6 @@ export default function Home() {
   const handActions = useHandActions(
     videoRef,
     isActive && (faceStatus === 'ready' || faceStatus === 'running'),
-    faceMetrics,
   );
   const calibration = faceMetrics.signal.calibration;
   const calibrationInstruction =
@@ -155,25 +148,21 @@ export default function Home() {
             : !faceMetrics.signal.accepted
               ? '人脸质量不足：请正对镜头并靠近一些'
               : interactionDiagnostics.blocker;
-  const surpriseVisualActive = effectsMetrics.surprise.phase !== 'idle';
   const heartVisualActive = effectsMetrics.heart.phase !== 'idle';
   const selectedGuide =
-    surpriseVisualActive || handActions.metrics.surpriseActive
+    heartVisualActive || handActions.metrics.heartActive
       ? 2
-      : heartVisualActive || handActions.metrics.heartActive
-        ? 3
-        : ['laugh-entering', 'laughing', 'celebrating'].includes(
-              interactionState,
-            )
-          ? 1
-          : ['smile-entering', 'smiling'].includes(interactionState)
-            ? 0
-            : manualGuide;
+      : ['laugh-entering', 'laughing', 'celebrating'].includes(
+          interactionState,
+        )
+      ? 1
+      : ['smile-entering', 'smiling'].includes(interactionState)
+        ? 0
+        : manualGuide;
   const activeGuide = expressionGuides[selectedGuide];
   const expressionWasRecognized =
     ['smile-entering', 'smiling'].includes(interactionState) ||
     ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState) ||
-    surpriseVisualActive ||
     heartVisualActive;
   const experienceGuide =
     faceStatus === 'loading'
@@ -379,7 +368,7 @@ export default function Home() {
               className={`expression-guide guide-${guideTone}`}
               aria-label="Expression guide"
             >
-              <span className="expression-guide-label">MOVES / 04</span>
+              <span className="expression-guide-label">试试这些动作吧～</span>
               <ul className="expression-strip">
                 {expressionGuides.map((guide, index) => (
                   <li key={guide.key}>
@@ -395,7 +384,7 @@ export default function Home() {
                         alt=""
                         width={104}
                         height={104}
-                        sizes="(max-width: 640px) 44px, 64px"
+                        sizes="(max-width: 720px) 81px, 117px"
                         priority={index < 2}
                       />
                       <span>{String(index + 1).padStart(2, '0')}</span>
@@ -411,7 +400,7 @@ export default function Home() {
             >
               <small>
                 {expressionWasRecognized
-                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 04 · ${activeGuide.label}`
+                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 03 · ${activeGuide.label}`
                   : 'PIXEL LIVE'}
               </small>
               <strong>{experienceGuide}</strong>
@@ -866,23 +855,12 @@ export default function Home() {
               </dd>
             </div>
             <div>
-              <dt>捂嘴惊讶 / 候选</dt>
-              <dd>
-                {handActions.metrics.surpriseScore.toFixed(2)} /{' '}
-                {Math.round(handActions.metrics.surpriseProgress * 100)}%
-              </dd>
-            </div>
-            <div>
               <dt>手部推理</dt>
               <dd>{handActions.metrics.inferenceMs?.toFixed(1) ?? '--'} ms</dd>
             </div>
             <div>
               <dt>爱心阶段</dt>
               <dd>{effectsMetrics.heart.phase.toUpperCase()}</dd>
-            </div>
-            <div>
-              <dt>惊讶阶段</dt>
-              <dd>{effectsMetrics.surprise.phase.toUpperCase()}</dd>
             </div>
           </dl>
         </div>
@@ -904,7 +882,7 @@ export default function Home() {
             ))}
           </div>
           <p className="simulation-help">
-            S 微笑 · L 大笑 · H 比心 · O 捂嘴惊讶 · N 回落 · Esc 恢复摄像头
+            S 微笑 · L 大笑 · H 比心 · N 回落 · Esc 恢复摄像头
           </p>
           <div className="simulation-buttons">
             <button
@@ -912,12 +890,6 @@ export default function Home() {
               onClick={() => handActions.triggerTest('heart')}
             >
               <kbd>H</kbd>比心
-            </button>
-            <button
-              type="button"
-              onClick={() => handActions.triggerTest('surprise')}
-            >
-              <kbd>O</kbd>捂嘴惊讶
             </button>
           </div>
         </div>

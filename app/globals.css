@@ -2025,7 +2025,7 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .expression-strip button > span {
@@ -2335,8 +2335,8 @@ body {
   right: auto;
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
   left: max(8px, env(safe-area-inset-left));
-  width: 94px;
-  padding: 7px;
+  width: 141px;
+  padding: 10px;
   border-width: 1px;
   background: rgba(247, 247, 243, 0.88);
   box-shadow:
@@ -2347,9 +2347,9 @@ body {
 
 .expression-guide-label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 9px;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.05em;
   line-height: 1;
@@ -2358,13 +2358,13 @@ body {
 
 .expression-strip {
   grid-template-columns: 1fr;
-  gap: 5px;
+  gap: 8px;
 }
 
 .expression-strip button {
   display: block;
-  width: 78px;
-  height: 68px;
+  width: 117px;
+  height: 102px;
   aspect-ratio: auto;
 }
 
@@ -2398,10 +2398,10 @@ body {
   z-index: 8;
   right: max(18px, env(safe-area-inset-right));
   bottom: max(24px, calc(env(safe-area-inset-bottom) + 14px));
-  left: max(108px, calc(env(safe-area-inset-left) + 100px));
+  left: max(155px, calc(env(safe-area-inset-left) + 147px));
   display: flex;
   width: fit-content;
-  max-width: min(720px, calc(100vw - 230px));
+  max-width: min(720px, calc(100vw - 277px));
   min-height: 58px;
   margin-inline: auto;
   padding: 11px 18px 10px;
@@ -2491,25 +2491,25 @@ body {
     right: auto;
     bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px));
     left: max(5px, env(safe-area-inset-left));
-    width: 66px;
-    padding: 5px;
+    width: 99px;
+    padding: 8px;
     box-shadow:
       3px 3px 0 var(--pixel-yellow),
       5px 5px 0 rgba(47, 97, 232, 0.72);
   }
 
   .expression-guide-label {
-    margin-bottom: 4px;
-    font-size: 8px;
+    margin-bottom: 6px;
+    font-size: 10px;
   }
 
   .expression-strip {
-    gap: 3px;
+    gap: 5px;
   }
 
   .expression-strip button {
-    width: 54px;
-    height: 50px;
+    width: 81px;
+    height: 75px;
     max-height: none;
   }
 
@@ -2523,8 +2523,8 @@ body {
   .expression-feedback {
     right: max(10px, env(safe-area-inset-right));
     bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px));
-    left: max(80px, calc(env(safe-area-inset-left) + 72px));
-    max-width: calc(100vw - 108px);
+    left: max(113px, calc(env(safe-area-inset-left) + 105px));
+    max-width: calc(100vw - 141px);
     min-height: 50px;
     padding: 9px 12px 8px;
     box-shadow:
@@ -2544,7 +2544,7 @@ body {
   }
 
   .expression-strip {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .expression-guide {
@@ -2552,8 +2552,8 @@ body {
   }
 
   .expression-strip button {
-    width: 50px;
-    height: 44px;
+    width: 75px;
+    height: 66px;
   }
 }
 

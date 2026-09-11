@@ -8,6 +8,9 @@ export type ExpressionScores = {
   cheekSquintRight: number;
   mouthDimpleLeft: number;
   mouthDimpleRight: number;
+  browInnerUp: number;
+  eyeWideLeft: number;
+  eyeWideRight: number;
 };
 
 export type ExpressionSettings = {

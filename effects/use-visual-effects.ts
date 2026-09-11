@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { HeadCollider } from '@/face/head-collider';
 import type { InteractionState } from '@/interaction/expression-state-machine';
 import type { TransitionRecord } from '@/interaction/use-interaction-state';
+import type { HandActionTrigger } from '@/hand/use-hand-actions';
 import type {
   VisualEffectsEngine as VisualEffectsEngineType,
   VisualEffectsMetrics,
@@ -32,6 +33,8 @@ const INITIAL_METRICS: VisualEffectsMetrics = {
     collisionMs: 0,
     phase: 'idle',
   },
+  heart: { phase: 'idle', activeHearts: 0, capacity: 33, triggerCount: 0 },
+  surprise: { phase: 'idle', activeElements: 0, triggerCount: 0 },
 };
 
 export function useVisualEffects(
@@ -39,6 +42,7 @@ export function useVisualEffects(
   expressionEnergy: number,
   latestTransition: TransitionRecord | undefined,
   headCollider: HeadCollider,
+  latestHandTrigger: HandActionTrigger | null,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VisualEffectsEngineType | null>(null);
@@ -47,6 +51,8 @@ export function useVisualEffects(
   const readyRef = useRef(false);
   const lastTransitionIdRef = useRef(0);
   const pendingTransitionsRef = useRef<TransitionRecord[]>([]);
+  const lastHandTriggerIdRef = useRef(0);
+  const pendingHandTriggersRef = useRef<HandActionTrigger[]>([]);
   const [status, setStatus] = useState<VisualEffectsStatus>('loading');
   const [metrics, setMetrics] = useState<VisualEffectsMetrics>(INITIAL_METRICS);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +69,18 @@ export function useVisualEffects(
     if (readyRef.current) engineRef.current?.handleTransition(latestTransition);
     else pendingTransitionsRef.current.push(latestTransition);
   }, [latestTransition]);
+
+  useEffect(() => {
+    if (
+      !latestHandTrigger ||
+      latestHandTrigger.id <= lastHandTriggerIdRef.current
+    )
+      return;
+    lastHandTriggerIdRef.current = latestHandTrigger.id;
+    if (readyRef.current)
+      engineRef.current?.handleHandAction(latestHandTrigger);
+    else pendingHandTriggersRef.current.push(latestHandTrigger);
+  }, [latestHandTrigger]);
 
   useEffect(() => {
     colliderRef.current = headCollider;
@@ -92,6 +110,10 @@ export function useVisualEffects(
           engine.handleTransition(transition);
         }
         pendingTransitionsRef.current = [];
+        for (const handTrigger of pendingHandTriggersRef.current) {
+          engine.handleHandAction(handTrigger);
+        }
+        pendingHandTriggersRef.current = [];
         setStatus('ready');
       })
       .catch((reason: unknown) => {

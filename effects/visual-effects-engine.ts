@@ -2,6 +2,7 @@ import { Application, Ticker } from 'pixi.js';
 import type { HeadCollider } from '@/face/head-collider';
 import type { InteractionState } from '@/interaction/expression-state-machine';
 import type { TransitionRecord } from '@/interaction/use-interaction-state';
+import type { HandActionTrigger } from '@/hand/use-hand-actions';
 import {
   FireworkSystem,
   type FireworkMetrics,
@@ -18,12 +19,16 @@ import {
   destroyVisualTextureLibrary,
   type VisualTextureLibrary,
 } from './visual-theme';
+import { HeartSystem, type HeartEffectMetrics } from './heart/heart-system';
+import { SurpriseSystem } from './surprise/surprise-system';
 
 export type VisualEffectsMetrics = {
   fps: number;
   quality: QualityLevel;
   bloom: EmotionBloomMetrics;
   fireworks: FireworkMetrics;
+  heart: HeartEffectMetrics;
+  surprise: ReturnType<SurpriseSystem['getMetrics']>;
 };
 
 type VisualEffectsEngineOptions = {
@@ -38,6 +43,8 @@ export class VisualEffectsEngine {
   private readonly onMetrics?: (metrics: VisualEffectsMetrics) => void;
   private emotionBloom: EmotionBloomSystem | null = null;
   private fireworks: FireworkSystem | null = null;
+  private heart: HeartSystem | null = null;
+  private surprise: SurpriseSystem | null = null;
   private storyDirector: EmotionStoryDirector | null = null;
   private performanceGovernor: PerformanceGovernor | null = null;
   private textures: VisualTextureLibrary | null = null;
@@ -46,6 +53,7 @@ export class VisualEffectsEngine {
   private initialized = false;
   private disposed = false;
   private impactTimer = 0;
+  private previewTimer = 0;
 
   constructor(host: HTMLElement, options: VisualEffectsEngineOptions = {}) {
     this.host = host;
@@ -91,18 +99,25 @@ export class VisualEffectsEngine {
       reducedDevice ? 220 : 320,
       this.textures,
     );
+    this.heart = new HeartSystem(this.textures);
+    this.surprise = new SurpriseSystem(this.textures);
     this.storyDirector = new EmotionStoryDirector(
       this.emotionBloom,
       this.fireworks,
     );
     this.storyDirector.setQuality(this.currentQuality);
+    this.heart.setQuality(this.currentQuality);
+    this.surprise.setQuality(this.currentQuality);
     this.app.stage.addChild(
       this.emotionBloom.container,
       this.fireworks.container,
+      this.surprise.container,
+      this.heart.container,
     );
     this.app.ticker.add(this.tick);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.publishMetrics(performance.now());
+    this.previewTimer = window.setTimeout(() => this.surprise?.preview(), 1000);
   }
 
   setStoryState(state: InteractionState, energy: number) {
@@ -121,15 +136,31 @@ export class VisualEffectsEngine {
     return triggered;
   }
 
+  handleHandAction(trigger: HandActionTrigger) {
+    if (trigger.kind === 'heart') {
+      return (
+        this.heart?.trigger(
+          trigger,
+          this.app.screen.width,
+          this.app.screen.height,
+        ) ?? false
+      );
+    }
+    return this.surprise?.trigger(trigger.id) ?? false;
+  }
+
   setHeadCollider(collider: HeadCollider) {
     this.emotionBloom?.setHeadCollider(collider);
     this.fireworks?.setHeadCollider(collider);
+    this.heart?.setHeadCollider(collider);
+    this.surprise?.setHeadCollider(collider);
   }
 
   destroy() {
     if (this.disposed) return;
     this.disposed = true;
     window.clearTimeout(this.impactTimer);
+    window.clearTimeout(this.previewTimer);
     document.removeEventListener(
       'visibilitychange',
       this.handleVisibilityChange,
@@ -139,8 +170,12 @@ export class VisualEffectsEngine {
     this.app.ticker.remove(this.tick);
     this.emotionBloom?.destroy();
     this.fireworks?.destroy();
+    this.heart?.destroy();
+    this.surprise?.destroy();
     this.emotionBloom = null;
     this.fireworks = null;
+    this.heart = null;
+    this.surprise = null;
     this.storyDirector = null;
     this.performanceGovernor = null;
     this.app.destroy(true, { children: true });
@@ -155,6 +190,8 @@ export class VisualEffectsEngine {
     const height = this.app.screen.height;
     this.emotionBloom?.update(deltaSeconds, now, width, height);
     this.fireworks?.update(deltaSeconds, now, width, height);
+    this.heart?.update(deltaSeconds, now, width, height);
+    this.surprise?.update(deltaSeconds, now, width, height);
 
     const nextQuality =
       this.performanceGovernor?.sample(this.app.ticker.FPS, now) ??
@@ -162,6 +199,8 @@ export class VisualEffectsEngine {
     if (nextQuality !== this.currentQuality) {
       this.currentQuality = nextQuality;
       this.storyDirector?.setQuality(nextQuality);
+      this.heart?.setQuality(nextQuality);
+      this.surprise?.setQuality(nextQuality);
     }
     if (now - this.lastMetricsAt >= METRICS_INTERVAL_MS) {
       this.publishMetrics(now);
@@ -190,6 +229,17 @@ export class VisualEffectsEngine {
         collisionChecks: 0,
         collisionMs: 0,
         phase: 'idle',
+      },
+      heart: this.heart?.getMetrics() ?? {
+        phase: 'idle',
+        activeHearts: 0,
+        capacity: 33,
+        triggerCount: 0,
+      },
+      surprise: this.surprise?.getMetrics() ?? {
+        phase: 'idle',
+        activeElements: 0,
+        triggerCount: 0,
       },
     });
   }

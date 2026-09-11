@@ -42,6 +42,14 @@ function describeFaceError(error: unknown) {
 
 export type FaceStatus = 'idle' | 'loading' | 'ready' | 'running' | 'error';
 
+export type FaceSafeRegion = {
+  valid: boolean;
+  centerX: number;
+  centerY: number;
+  radiusX: number;
+  radiusY: number;
+};
+
 export type FaceMetrics = {
   hasFace: boolean;
   landmarkCount: number;
@@ -50,6 +58,7 @@ export type FaceMetrics = {
   expressions: ExpressionScores;
   signal: typeof EMPTY_EXPRESSION_SIGNAL;
   headCollider: HeadCollider;
+  mouthRegion: FaceSafeRegion;
 };
 
 const emptyMetrics: FaceMetrics = {
@@ -65,9 +74,19 @@ const emptyMetrics: FaceMetrics = {
     cheekSquintRight: 0,
     mouthDimpleLeft: 0,
     mouthDimpleRight: 0,
+    browInnerUp: 0,
+    eyeWideLeft: 0,
+    eyeWideRight: 0,
   },
   signal: EMPTY_EXPRESSION_SIGNAL,
   headCollider: EMPTY_HEAD_COLLIDER,
+  mouthRegion: {
+    valid: false,
+    centerX: 0,
+    centerY: 0,
+    radiusX: 0,
+    radiusY: 0,
+  },
 };
 
 function scoreOf(categories: Category[], name: string) {
@@ -94,6 +113,9 @@ function readMetrics(
     cheekSquintRight: scoreOf(categories, 'cheekSquintRight'),
     mouthDimpleLeft: scoreOf(categories, 'mouthDimpleLeft'),
     mouthDimpleRight: scoreOf(categories, 'mouthDimpleRight'),
+    browInnerUp: scoreOf(categories, 'browInnerUp'),
+    eyeWideLeft: scoreOf(categories, 'eyeWideLeft'),
+    eyeWideRight: scoreOf(categories, 'eyeWideRight'),
   };
 
   const signal = processor.process(expressions, landmarks, timestampMs);
@@ -107,6 +129,13 @@ function readMetrics(
     headCollider: {
       ...headCollider,
       valid: headCollider.valid && signal.accepted,
+    },
+    mouthRegion: {
+      valid: headCollider.valid && signal.accepted,
+      centerX: headCollider.centerX,
+      centerY: headCollider.centerY + headCollider.radiusY * 0.38,
+      radiusX: headCollider.radiusX * 0.62,
+      radiusY: headCollider.radiusY * 0.42,
     },
   };
 }

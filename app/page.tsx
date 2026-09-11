@@ -14,6 +14,7 @@ import {
 } from '@/interaction/use-interaction-state';
 import { DEFAULT_STATE_MACHINE_SETTINGS } from '@/interaction/expression-state-machine';
 import { useVisualEffects } from '@/effects/use-visual-effects';
+import { useHandActions } from '@/hand/use-hand-actions';
 
 const statusCopy = {
   idle: 'STANDBY',
@@ -104,6 +105,11 @@ export default function Home() {
     error: faceError,
     recalibrate,
   } = useFaceLandmarker(videoRef, isActive, expressionSettings);
+  const handActions = useHandActions(
+    videoRef,
+    isActive && (faceStatus === 'ready' || faceStatus === 'running'),
+    faceMetrics,
+  );
   const calibration = faceMetrics.signal.calibration;
   const calibrationInstruction =
     calibration.status === 'neutral'
@@ -147,6 +153,7 @@ export default function Home() {
     interactionDiagnostics.expressionEnergy,
     transitions[0],
     faceMetrics.headCollider,
+    handActions.trigger,
   );
   const facePipelineStatus =
     faceStatus === 'running' && calibration.status !== 'ready'
@@ -166,15 +173,26 @@ export default function Home() {
             : !faceMetrics.signal.accepted
               ? '人脸质量不足：请正对镜头并靠近一些'
               : interactionDiagnostics.blocker;
-  const selectedGuide = ['smile-entering', 'smiling'].includes(interactionState)
-    ? 0
-    : ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState)
-      ? 1
-      : manualGuide;
+  const surpriseVisualActive = effectsMetrics.surprise.phase !== 'idle';
+  const heartVisualActive = effectsMetrics.heart.phase !== 'idle';
+  const selectedGuide =
+    surpriseVisualActive || handActions.metrics.surpriseActive
+      ? 2
+      : heartVisualActive || handActions.metrics.heartActive
+        ? 4
+        : ['laugh-entering', 'laughing', 'celebrating'].includes(
+              interactionState,
+            )
+          ? 1
+          : ['smile-entering', 'smiling'].includes(interactionState)
+            ? 0
+            : manualGuide;
   const activeGuide = expressionGuides[selectedGuide];
   const expressionWasRecognized =
     ['smile-entering', 'smiling'].includes(interactionState) ||
-    ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState);
+    ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState) ||
+    surpriseVisualActive ||
+    heartVisualActive;
   const experienceGuide =
     faceStatus === 'loading'
       ? 'LOADING FACE MODEL…'
@@ -212,6 +230,14 @@ export default function Home() {
       label: '表情识别',
       value: facePipelineStatus,
       active: calibration.status === 'ready',
+    },
+    {
+      label: '手势识别',
+      value:
+        handActions.status === 'running'
+          ? `${handActions.metrics.hands} HANDS`
+          : handActions.status.toUpperCase(),
+      active: handActions.status === 'running',
     },
     {
       label: '互动状态',
@@ -443,7 +469,7 @@ export default function Home() {
               </small>
             </span>
           </button>
-          <p>ON-DEVICE FACE TRACKING · NO VIDEO UPLOAD</p>
+          <p>ON-DEVICE FACE + HAND TRACKING · NO VIDEO UPLOAD</p>
         </div>
       </section>
 
@@ -846,6 +872,46 @@ export default function Home() {
             镜像坐标 · Cover 裁切补偿 · 95 ms 防抖平滑
           </p>
         </div>
+        <div className="debug-section signal-section">
+          <div className="section-title-row">
+            <p className="debug-label">HAND ACTIONS</p>
+            <span className="quality-chip accepted">
+              {handActions.status.toUpperCase()}
+            </span>
+          </div>
+          <dl className="signal-details">
+            <div>
+              <dt>检测手数</dt>
+              <dd>{handActions.metrics.hands}</dd>
+            </div>
+            <div>
+              <dt>比心 / 候选</dt>
+              <dd>
+                {handActions.metrics.heartScore.toFixed(2)} /{' '}
+                {Math.round(handActions.metrics.heartProgress * 100)}%
+              </dd>
+            </div>
+            <div>
+              <dt>捂嘴惊讶 / 候选</dt>
+              <dd>
+                {handActions.metrics.surpriseScore.toFixed(2)} /{' '}
+                {Math.round(handActions.metrics.surpriseProgress * 100)}%
+              </dd>
+            </div>
+            <div>
+              <dt>手部推理</dt>
+              <dd>{handActions.metrics.inferenceMs?.toFixed(1) ?? '--'} ms</dd>
+            </div>
+            <div>
+              <dt>爱心阶段</dt>
+              <dd>{effectsMetrics.heart.phase.toUpperCase()}</dd>
+            </div>
+            <div>
+              <dt>惊讶阶段</dt>
+              <dd>{effectsMetrics.surprise.phase.toUpperCase()}</dd>
+            </div>
+          </dl>
+        </div>
         <div className="debug-section simulation-section">
           <p className="debug-label">键盘模拟</p>
           <div className="simulation-buttons">
@@ -864,8 +930,22 @@ export default function Home() {
             ))}
           </div>
           <p className="simulation-help">
-            S 微笑 · L 大笑 · N 回落 · Esc 恢复摄像头
+            S 微笑 · L 大笑 · H 比心 · O 捂嘴惊讶 · N 回落 · Esc 恢复摄像头
           </p>
+          <div className="simulation-buttons">
+            <button
+              type="button"
+              onClick={() => handActions.triggerTest('heart')}
+            >
+              <kbd>H</kbd>比心
+            </button>
+            <button
+              type="button"
+              onClick={() => handActions.triggerTest('surprise')}
+            >
+              <kbd>O</kbd>捂嘴惊讶
+            </button>
+          </div>
         </div>
         <div className="debug-section transition-section">
           <div className="section-title-row">

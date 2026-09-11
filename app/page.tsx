@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCamera } from '@/camera/use-camera';
 import { useFaceLandmarker } from '@/face/use-face-landmarker';
 import {
@@ -54,25 +54,28 @@ const expressionGuides = [
     key: 'smile',
     label: 'SMILE',
     copy: 'Hey~ welcome in!',
+    prompt: 'Fresh faces just joined — welcome them with a smile!',
     image: '/guides/01-smile.jpg',
   },
   {
     key: 'laugh',
     label: 'LAUGH',
     copy: "LMAO! That's hilarious!",
+    prompt: 'Chat is on fire — let out your biggest laugh!',
     image: '/guides/02-laugh.jpg',
   },
   {
     key: 'heart',
     label: 'HEART',
     copy: "Love y'all",
+    prompt: 'Love is pouring in — send a heart right back!',
     image: '/guides/03-heart.jpg',
   },
 ] as const;
 
 export default function Home() {
   const [debugOpen, setDebugOpen] = useState(false);
-  const [manualGuide, setManualGuide] = useState(0);
+  const [promptIndex, setPromptIndex] = useState(0);
   const [expressionSettings, setExpressionSettings] =
     useState<ExpressionSettings>(DEFAULT_EXPRESSION_SETTINGS);
   const {
@@ -158,12 +161,20 @@ export default function Home() {
       ? 1
       : ['smile-entering', 'smiling'].includes(interactionState)
         ? 0
-        : manualGuide;
+        : promptIndex;
   const activeGuide = expressionGuides[selectedGuide];
   const expressionWasRecognized =
     ['smile-entering', 'smiling'].includes(interactionState) ||
     ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState) ||
-    heartVisualActive;
+    heartVisualActive ||
+    handActions.metrics.heartActive;
+  const showPromptCarousel =
+    isActive &&
+    faceStatus === 'running' &&
+    calibration.status === 'ready' &&
+    faceMetrics.signal.accepted &&
+    interactionState === 'neutral' &&
+    !expressionWasRecognized;
   const experienceGuide =
     faceStatus === 'loading'
       ? 'LOADING FACE MODEL…'
@@ -182,6 +193,16 @@ export default function Home() {
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'
       : interactionState;
+
+  useEffect(() => {
+    if (!showPromptCarousel) return;
+
+    const timer = window.setInterval(() => {
+      setPromptIndex((current) => (current + 1) % expressionGuides.length);
+    }, 4200);
+
+    return () => window.clearInterval(timer);
+  }, [showPromptCarousel]);
 
   function updateExpressionSetting(
     key: keyof ExpressionSettings,
@@ -377,7 +398,7 @@ export default function Home() {
                       className={selectedGuide === index ? 'is-selected' : ''}
                       aria-label={`${guide.label}: ${guide.copy}`}
                       aria-pressed={selectedGuide === index}
-                      onClick={() => setManualGuide(index)}
+                      onClick={() => setPromptIndex(index)}
                     >
                       <Image
                         src={guide.image}
@@ -392,6 +413,16 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+              {showPromptCarousel ? (
+                <aside
+                  key={promptIndex}
+                  className={`guide-dialog guide-dialog-${promptIndex}`}
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <strong>{expressionGuides[promptIndex].prompt}</strong>
+                </aside>
+              ) : null}
             </section>
             <output
               className={`expression-feedback ${expressionWasRecognized ? 'is-hit' : ''}`}

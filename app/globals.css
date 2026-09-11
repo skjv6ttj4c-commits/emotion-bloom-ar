@@ -2393,6 +2393,69 @@ body {
   font-size: 8px;
 }
 
+.guide-dialog {
+  position: absolute;
+  top: 48px;
+  left: calc(100% + 18px);
+  display: flex;
+  width: max-content;
+  max-width: min(292px, calc(100vw - 188px));
+  min-height: 64px;
+  padding: 14px 18px;
+  align-items: center;
+  border: 2px solid #090909;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    5px 5px 0 var(--pixel-yellow),
+    8px 8px 0 rgba(47, 97, 232, 0.82);
+  color: #090909;
+  pointer-events: none;
+  animation: guide-dialog-in 360ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+  backdrop-filter: blur(10px);
+}
+
+.guide-dialog::before {
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  width: 18px;
+  height: 18px;
+  border-bottom: 2px solid #090909;
+  border-left: 2px solid #090909;
+  background: #fff;
+  content: '';
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.guide-dialog strong {
+  position: relative;
+  z-index: 1;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.28;
+}
+
+.guide-dialog-1 {
+  top: 158px;
+}
+
+.guide-dialog-2 {
+  top: 268px;
+}
+
+@keyframes guide-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
 .expression-feedback {
   position: absolute;
   z-index: 8;
@@ -2520,6 +2583,31 @@ body {
     box-shadow: 2px 2px 0 var(--pixel-blue);
   }
 
+  .guide-dialog {
+    top: 34px;
+    left: calc(100% + 10px);
+    max-width: calc(100vw - 128px);
+    min-height: 52px;
+    padding: 10px 13px;
+    border-radius: 18px;
+    box-shadow:
+      3px 3px 0 var(--pixel-yellow),
+      5px 5px 0 rgba(47, 97, 232, 0.82);
+  }
+
+  .guide-dialog strong {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .guide-dialog-1 {
+    top: 114px;
+  }
+
+  .guide-dialog-2 {
+    top: 194px;
+  }
+
   .expression-feedback {
     right: max(10px, env(safe-area-inset-right));
     bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px));
@@ -2555,6 +2643,13 @@ body {
     width: 75px;
     height: 66px;
   }
+
+  .guide-dialog,
+  .guide-dialog-1,
+  .guide-dialog-2 {
+    top: 0;
+    left: calc(100% + 10px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2562,6 +2657,10 @@ body {
   .camera-error .primary-action,
   .camera-requesting .primary-action,
   .expression-feedback.is-hit {
+    animation: none;
+  }
+
+  .guide-dialog {
     animation: none;
   }
 }

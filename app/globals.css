@@ -1971,7 +1971,7 @@ body {
 
 .expression-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -2009,10 +2009,6 @@ body {
 
 .expression-strip button:nth-child(4) {
   background: #ffd6e7;
-}
-
-.expression-strip button:nth-child(5) {
-  background: #dcffb5;
 }
 
 .expression-strip button:hover,
@@ -2319,10 +2315,13 @@ body {
   width: 46px;
   height: 46px;
   background:
-    linear-gradient(var(--pixel-yellow), var(--pixel-yellow)) 8px 8px / 11px 11px no-repeat,
+    linear-gradient(var(--pixel-yellow), var(--pixel-yellow)) 8px 8px / 11px
+      11px no-repeat,
     linear-gradient(#fff, #fff) 23px 8px / 11px 11px no-repeat,
-    linear-gradient(var(--pixel-pink, #ff5d9e), var(--pixel-pink, #ff5d9e)) 8px 23px / 11px 11px no-repeat,
-    linear-gradient(var(--pixel-blue), var(--pixel-blue)) 23px 23px / 11px 11px no-repeat;
+    linear-gradient(var(--pixel-pink, #ff5d9e), var(--pixel-pink, #ff5d9e)) 8px
+      23px / 11px 11px no-repeat,
+    linear-gradient(var(--pixel-blue), var(--pixel-blue)) 23px 23px / 11px 11px
+      no-repeat;
 }
 
 .camera-idle .control-dock > p,
@@ -2336,7 +2335,7 @@ body {
   right: auto;
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
   left: max(8px, env(safe-area-inset-left));
-  width: 82px;
+  width: 94px;
   padding: 7px;
   border-width: 1px;
   background: rgba(247, 247, 243, 0.88);
@@ -2364,8 +2363,8 @@ body {
 
 .expression-strip button {
   display: block;
-  width: 66px;
-  height: 58px;
+  width: 78px;
+  height: 68px;
   aspect-ratio: auto;
 }
 
@@ -2379,10 +2378,6 @@ body {
 
 .expression-strip li:nth-child(4) button {
   background: #ffd6e7;
-}
-
-.expression-strip li:nth-child(5) button {
-  background: #dcffb5;
 }
 
 .expression-strip button:hover,
@@ -2496,8 +2491,8 @@ body {
     right: auto;
     bottom: max(10px, calc(env(safe-area-inset-bottom) + 6px));
     left: max(5px, env(safe-area-inset-left));
-    width: 57px;
-    padding: 4px;
+    width: 66px;
+    padding: 5px;
     box-shadow:
       3px 3px 0 var(--pixel-yellow),
       5px 5px 0 rgba(47, 97, 232, 0.72);
@@ -2505,7 +2500,7 @@ body {
 
   .expression-guide-label {
     margin-bottom: 4px;
-    font-size: 7px;
+    font-size: 8px;
   }
 
   .expression-strip {
@@ -2513,8 +2508,8 @@ body {
   }
 
   .expression-strip button {
-    width: 47px;
-    height: 43px;
+    width: 54px;
+    height: 50px;
     max-height: none;
   }
 
@@ -2528,8 +2523,8 @@ body {
   .expression-feedback {
     right: max(10px, env(safe-area-inset-right));
     bottom: max(18px, calc(env(safe-area-inset-bottom) + 12px));
-    left: max(72px, calc(env(safe-area-inset-left) + 66px));
-    max-width: calc(100vw - 100px);
+    left: max(80px, calc(env(safe-area-inset-left) + 72px));
+    max-width: calc(100vw - 108px);
     min-height: 50px;
     padding: 9px 12px 8px;
     box-shadow:
@@ -2549,7 +2544,7 @@ body {
   }
 
   .expression-strip {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .expression-guide {
@@ -2557,8 +2552,8 @@ body {
   }
 
   .expression-strip button {
-    width: 42px;
-    height: 38px;
+    width: 50px;
+    height: 44px;
   }
 }
 

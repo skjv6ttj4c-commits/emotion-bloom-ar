@@ -69,16 +69,10 @@ const expressionGuides = [
     image: '/guides/03-surprise.png',
   },
   {
-    key: 'salute',
-    label: 'SALUTE',
-    copy: 'SALUTE! o7',
-    image: '/guides/04-salute.png',
-  },
-  {
     key: 'heart',
     label: 'HEART',
     copy: "Love y'all",
-    image: '/guides/05-heart.png',
+    image: '/guides/04-heart.png',
   },
 ] as const;
 
@@ -112,21 +106,9 @@ export default function Home() {
   );
   const calibration = faceMetrics.signal.calibration;
   const calibrationInstruction =
-    calibration.status === 'neutral'
-      ? calibration.neutralSampleAccepted
-        ? '请放松表情，正在记录自然状态'
-        : '请自然闭嘴并放松笑容'
-      : calibration.status === 'smile-prompt'
-        ? '请自然微笑一次'
-        : calibration.status === 'smile-capturing'
-          ? '很好，请保持微笑片刻'
-          : calibration.status === 'jaw-prompt'
-            ? '接下来请自然张大嘴一次'
-            : calibration.status === 'jaw-capturing'
-              ? '很好，请保持张嘴片刻'
-              : calibration.status === 'ready'
-                ? '个体表情模型已就绪'
-                : '检测到人脸后开始个体校准';
+    calibration.status === 'ready'
+      ? '个体表情模型已就绪'
+      : '正在后台适配当前人脸';
   const {
     state: interactionState,
     simulationMode,
@@ -179,7 +161,7 @@ export default function Home() {
     surpriseVisualActive || handActions.metrics.surpriseActive
       ? 2
       : heartVisualActive || handActions.metrics.heartActive
-        ? 4
+        ? 3
         : ['laugh-entering', 'laughing', 'celebrating'].includes(
               interactionState,
             )
@@ -201,12 +183,7 @@ export default function Home() {
         : !faceMetrics.hasFace
           ? 'MOVE INTO FRAME'
           : calibration.status !== 'ready'
-            ? calibration.status === 'neutral'
-              ? 'LOOK AT THE CAMERA AND RELAX'
-              : calibration.status === 'smile-prompt' ||
-                  calibration.status === 'smile-capturing'
-                ? 'GIVE US ONE NATURAL SMILE'
-                : 'OPEN YOUR MOUTH ONCE FOR CALIBRATION'
+            ? 'ONE MOMENT…'
             : !faceMetrics.signal.accepted
               ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
               : expressionWasRecognized
@@ -402,7 +379,7 @@ export default function Home() {
               className={`expression-guide guide-${guideTone}`}
               aria-label="Expression guide"
             >
-              <span className="expression-guide-label">MOVES / 05</span>
+              <span className="expression-guide-label">MOVES / 04</span>
               <ul className="expression-strip">
                 {expressionGuides.map((guide, index) => (
                   <li key={guide.key}>
@@ -434,13 +411,10 @@ export default function Home() {
             >
               <small>
                 {expressionWasRecognized
-                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 05 · ${activeGuide.label}`
+                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 04 · ${activeGuide.label}`
                   : 'PIXEL LIVE'}
               </small>
               <strong>{experienceGuide}</strong>
-              {faceStatus === 'running' && calibration.status !== 'ready' ? (
-                <span>{Math.round(calibration.progress * 100)}%</span>
-              ) : null}
             </output>
           </>
         ) : null}

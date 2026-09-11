@@ -20,14 +20,7 @@ export type ExpressionSettings = {
   jawRange: number;
 };
 
-export type CalibrationStatus =
-  | 'waiting'
-  | 'neutral'
-  | 'smile-prompt'
-  | 'smile-capturing'
-  | 'jaw-prompt'
-  | 'jaw-capturing'
-  | 'ready';
+export type CalibrationStatus = 'waiting' | 'neutral' | 'ready';
 
 export type ExpressionSignal = {
   accepted: boolean;
@@ -53,9 +46,8 @@ export const DEFAULT_EXPRESSION_SETTINGS: ExpressionSettings = {
   jawRange: 0.42,
 };
 
-const NEUTRAL_DURATION_MS = 1800;
-const EXPRESSION_CAPTURE_MS = 850;
-const MIN_NEUTRAL_SAMPLES = 18;
+const NEUTRAL_DURATION_MS = 700;
+const MIN_NEUTRAL_SAMPLES = 7;
 const SMILE_DEAD_ZONE = 0.012;
 const JAW_DEAD_ZONE = 0.012;
 const MIN_SMILE_RANGE = 0.055;
@@ -113,7 +105,6 @@ export class ExpressionSignalProcessor {
   private smoothedSmile = 0;
   private smoothedJaw = 0;
   private calibrationElapsedMs = 0;
-  private captureElapsedMs = 0;
   private calibrationSamples = 0;
   private calibrationSmileSamples: number[] = [];
   private calibrationJawSamples: number[] = [];
@@ -138,7 +129,6 @@ export class ExpressionSignalProcessor {
     this.smoothedSmile = 0;
     this.smoothedJaw = 0;
     this.calibrationElapsedMs = 0;
-    this.captureElapsedMs = 0;
     this.calibrationSamples = 0;
     this.calibrationSmileSamples = [];
     this.calibrationJawSamples = [];
@@ -212,44 +202,11 @@ export class ExpressionSignalProcessor {
         this.calibrationElapsedMs >= NEUTRAL_DURATION_MS &&
         this.calibrationSamples >= MIN_NEUTRAL_SAMPLES
       ) {
-        this.peakSmile = this.baselineSmile;
-        this.peakJaw = this.baselineJaw;
-        this.calibrationStatus = 'smile-prompt';
-      }
-      return;
-    }
-
-    this.neutralSampleAccepted = true;
-    if (
-      this.calibrationStatus === 'smile-prompt' &&
-      this.smoothedSmile >= this.baselineSmile + 0.025 &&
-      this.smoothedJaw <= this.baselineJaw + 0.16
-    ) {
-      this.captureElapsedMs = 0;
-      this.calibrationStatus = 'smile-capturing';
-    }
-    if (this.calibrationStatus === 'smile-capturing') {
-      this.captureElapsedMs += deltaMs;
-      this.peakSmile = Math.max(this.peakSmile, rawSmile, this.smoothedSmile);
-      if (this.captureElapsedMs >= EXPRESSION_CAPTURE_MS) {
-        this.captureElapsedMs = 0;
-        this.calibrationStatus = 'jaw-prompt';
-      }
-      return;
-    }
-    if (
-      this.calibrationStatus === 'jaw-prompt' &&
-      this.smoothedJaw >= this.baselineJaw + 0.075
-    ) {
-      this.captureElapsedMs = 0;
-      this.calibrationStatus = 'jaw-capturing';
-    }
-    if (this.calibrationStatus === 'jaw-capturing') {
-      this.captureElapsedMs += deltaMs;
-      this.peakJaw = Math.max(this.peakJaw, rawJaw, this.smoothedJaw);
-      if (this.captureElapsedMs >= EXPRESSION_CAPTURE_MS) {
+        this.peakSmile = this.baselineSmile + 0.12;
+        this.peakJaw = this.baselineJaw + 0.22;
         this.calibrationStatus = 'ready';
       }
+      return;
     }
   }
 
@@ -286,14 +243,9 @@ export class ExpressionSignalProcessor {
     if (this.calibrationStatus === 'ready') return 1;
     if (this.calibrationStatus === 'waiting') return 0;
     if (this.calibrationStatus === 'neutral') {
-      return clamp(this.calibrationElapsedMs / NEUTRAL_DURATION_MS) * 0.45;
+      return clamp(this.calibrationElapsedMs / NEUTRAL_DURATION_MS);
     }
-    if (this.calibrationStatus === 'smile-prompt') return 0.45;
-    if (this.calibrationStatus === 'smile-capturing') {
-      return 0.45 + clamp(this.captureElapsedMs / EXPRESSION_CAPTURE_MS) * 0.25;
-    }
-    if (this.calibrationStatus === 'jaw-prompt') return 0.7;
-    return 0.7 + clamp(this.captureElapsedMs / EXPRESSION_CAPTURE_MS) * 0.3;
+    return 0;
   }
 
   private snapshot(

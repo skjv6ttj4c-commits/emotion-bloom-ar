@@ -14,8 +14,9 @@ import {
   type HandActionSample,
 } from './action-gesture';
 
-const WASM_PATH = '/mediapipe/wasm';
-const MODEL_PATH = '/mediapipe/models/hand_landmarker.task';
+const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+const WASM_PATH = `${PUBLIC_BASE_PATH}/mediapipe/wasm`;
+const MODEL_PATH = `${PUBLIC_BASE_PATH}/mediapipe/models/hand_landmarker.task`;
 const INFERENCE_INTERVAL_MS = 1000 / 10;
 
 type ActionKind = 'heart';

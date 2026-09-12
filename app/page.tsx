@@ -55,21 +55,21 @@ const expressionGuides = [
     label: 'SMILE',
     copy: 'Hey~ welcome in!',
     prompt: 'Fresh faces just joined — welcome them with a smile!',
-    image: '/guides/01-smile.jpg',
+    image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/01-smile.jpg`,
   },
   {
     key: 'laugh',
     label: 'LAUGH',
     copy: "LMAO! That's hilarious!",
     prompt: 'Chat is on fire — let out your biggest laugh!',
-    image: '/guides/02-laugh.jpg',
+    image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/02-laugh.jpg`,
   },
   {
     key: 'heart',
     label: 'HEART',
     copy: "Love y'all",
     prompt: 'Love is pouring in — send a heart right back!',
-    image: '/guides/03-heart.jpg',
+    image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/03-heart.jpg`,
   },
 ] as const;
 

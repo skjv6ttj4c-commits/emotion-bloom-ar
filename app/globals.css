@@ -2283,6 +2283,8 @@ body {
 .camera-idle .primary-action,
 .camera-error .primary-action,
 .camera-requesting .primary-action {
+  position: relative;
+  overflow: hidden;
   min-width: clamp(290px, 30vw, 390px);
   min-height: 78px;
   justify-content: center;
@@ -2291,6 +2293,28 @@ body {
     9px 9px 0 var(--pixel-blue),
     14px 14px 0 var(--pixel-yellow);
   animation: camera-cta-pulse 1.8s steps(3, end) infinite;
+}
+
+.model-load-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 5px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.model-load-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--pixel-blue),
+    var(--pixel-pink, #ff5d9e),
+    var(--pixel-yellow)
+  );
+  transition: width 280ms ease-out;
 }
 
 .camera-idle .primary-action strong,

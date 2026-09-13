@@ -95,12 +95,15 @@ export default function Home() {
     metrics: faceMetrics,
     error: faceError,
     recalibrate,
+    loadProgress: faceLoadProgress,
+    loadStage: faceLoadStage,
+    modelCacheHit,
   } = useFaceLandmarker(videoRef, isActive, expressionSettings);
+  const calibration = faceMetrics.signal.calibration;
   const handActions = useHandActions(
     videoRef,
-    isActive && (faceStatus === 'ready' || faceStatus === 'running'),
+    isActive && faceStatus === 'running' && calibration.status === 'ready',
   );
-  const calibration = faceMetrics.signal.calibration;
   const calibrationInstruction =
     calibration.status === 'ready'
       ? '个体表情模型已就绪'
@@ -177,7 +180,7 @@ export default function Home() {
     !expressionWasRecognized;
   const experienceGuide =
     faceStatus === 'loading'
-      ? 'LOADING FACE MODEL…'
+      ? `SETTING THE STAGE · ${Math.round(faceLoadProgress * 100)}%`
       : faceStatus === 'error'
         ? 'FACE TRACKING IS UNAVAILABLE'
         : !faceMetrics.hasFace
@@ -193,6 +196,14 @@ export default function Home() {
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'
       : interactionState;
+  const coverWarmupCopy =
+    faceLoadStage === 'ready'
+      ? modelCacheHit
+        ? 'MODEL READY · CACHED ON THIS DEVICE'
+        : 'MODEL READY · TAP TO JOIN'
+      : faceLoadStage === 'error'
+        ? 'TAP TO RETRY MODEL + CAMERA'
+        : `PREPARING THE STAGE · ${Math.round(faceLoadProgress * 100)}%`;
 
   useEffect(() => {
     if (!showPromptCarousel) return;
@@ -459,9 +470,14 @@ export default function Home() {
                       : 'OPEN CAMERA'}
               </strong>
               <small>
-                {isActive ? 'STOP VIDEO STREAM' : 'CLICK TO JOIN THE ROOM'}
+                {isActive ? 'STOP VIDEO STREAM' : coverWarmupCopy}
               </small>
             </span>
+            {!isActive && faceLoadStage !== 'error' ? (
+              <i className="model-load-bar" aria-hidden="true">
+                <span style={{ width: `${faceLoadProgress * 100}%` }} />
+              </i>
+            ) : null}
           </button>
           <p>ON-DEVICE FACE + HAND TRACKING · NO VIDEO UPLOAD</p>
         </div>

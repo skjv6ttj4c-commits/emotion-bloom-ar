@@ -25,10 +25,13 @@ import {
   projectLandmarkToCover,
   type HeadCollider,
 } from './head-collider';
+import {
+  getFaceLoadSnapshot,
+  preloadFaceRuntime,
+  subscribeToFaceLoad,
+  type FaceLoadStage,
+} from './face-runtime';
 
-const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
-const WASM_PATH = `${PUBLIC_BASE_PATH}/mediapipe/wasm`;
-const MODEL_PATH = `${PUBLIC_BASE_PATH}/mediapipe/models/face_landmarker.task`;
 const INFERENCE_INTERVAL_MS = 1000 / 15;
 const MAX_DEVICE_PIXEL_RATIO = 2;
 const FACE_CHANGE_RESET_MS = 1400;
@@ -238,10 +241,50 @@ export function useFaceLandmarker(
   const [status, setStatus] = useState<FaceStatus>('idle');
   const [metrics, setMetrics] = useState<FaceMetrics>(emptyMetrics);
   const [error, setError] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState(
+    () => getFaceLoadSnapshot().progress,
+  );
+  const [loadStage, setLoadStage] = useState<FaceLoadStage>(
+    () => getFaceLoadSnapshot().stage,
+  );
+  const [modelCacheHit, setModelCacheHit] = useState(
+    () => getFaceLoadSnapshot().cacheHit,
+  );
 
   useEffect(() => {
     processor.setSettings(settings);
   }, [processor, settings]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const unsubscribe = subscribeToFaceLoad((next) => {
+      if (cancelled) return;
+      setLoadProgress(next.progress);
+      setLoadStage(next.stage);
+      setModelCacheHit(next.cacheHit);
+    });
+
+    // Warm up the complete face runtime while the visitor reads the cover.
+    // This does not request camera permission or process any user imagery.
+    void preloadFaceRuntime()
+      .then(() => {
+        if (!cancelled) {
+          setStatus('ready');
+          setError(null);
+        }
+      })
+      .catch((caughtError) => {
+        if (!cancelled) {
+          setStatus('error');
+          setError(describeFaceError(caughtError));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const recalibrate = useCallback(() => {
     const signal = processor.reset();
@@ -268,35 +311,17 @@ export function useFaceLandmarker(
     let faceMissingSince = 0;
 
     async function initialize() {
-      setStatus('loading');
+      setStatus(getFaceLoadSnapshot().stage === 'ready' ? 'ready' : 'loading');
       setError(null);
       setMetrics(emptyMetrics);
 
       try {
-        const { FaceLandmarker: FaceLandmarkerRuntime, FilesetResolver } =
-          await import('@mediapipe/tasks-vision');
-        const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
-        const instance = await FaceLandmarkerRuntime.createFromOptions(
-          fileset,
-          {
-            baseOptions: { modelAssetPath: MODEL_PATH, delegate: 'CPU' },
-            runningMode: 'VIDEO',
-            numFaces: 1,
-            outputFaceBlendshapes: true,
-            outputFacialTransformationMatrixes: false,
-            minFaceDetectionConfidence: 0.5,
-            minFacePresenceConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-          },
-        );
+        const prepared = await preloadFaceRuntime();
 
-        if (cancelled) {
-          instance.close();
-          return;
-        }
+        if (cancelled) return;
 
-        faceLandmarker = instance;
-        faceLandmarkerClass = FaceLandmarkerRuntime;
+        faceLandmarker = prepared.instance;
+        faceLandmarkerClass = prepared.runtime;
         setStatus('ready');
         animationFrame = requestAnimationFrame(runInference);
       } catch (caughtError) {
@@ -381,7 +406,6 @@ export function useFaceLandmarker(
     return () => {
       cancelled = true;
       cancelAnimationFrame(animationFrame);
-      faceLandmarker?.close();
     };
   }, [cameraActive, processor, videoRef]);
 
@@ -391,5 +415,8 @@ export function useFaceLandmarker(
     metrics: cameraActive ? metrics : emptyMetrics,
     error,
     recalibrate,
+    loadProgress,
+    loadStage,
+    modelCacheHit,
   };
 }

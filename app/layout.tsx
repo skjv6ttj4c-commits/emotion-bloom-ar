@@ -16,8 +16,18 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const publicBasePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="preload"
+          href={`${publicBasePath}/mediapipe/models/face_landmarker.task`}
+          as="fetch"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>

@@ -1,13 +1,22 @@
 import type { FaceLandmarker } from '@mediapipe/tasks-vision';
+import {
+  FACE_MODEL_FALLBACK_PATH,
+  FACE_MODEL_PATH,
+  VISION_ASSET_CACHE,
+  VISION_CACHE_SCOPE,
+  VISION_CACHE_WORKER_PATH,
+  VISION_WASM_PATH,
+} from './face-assets';
 
-const PUBLIC_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
-const WASM_PATH = `${PUBLIC_BASE_PATH}/mediapipe/wasm`;
-const MODEL_PATH = `${PUBLIC_BASE_PATH}/mediapipe/models/face_landmarker.task`;
-const MODEL_CACHE = 'pixel-live-face-model-v1';
+const EXPECTED_MODEL_BYTES = 3_758_596;
+const DOWNLOAD_STALL_TIMEOUT_MS = 12_000;
+const MAX_DOWNLOAD_ATTEMPTS = 2;
 
 export type FaceLoadStage =
   | 'idle'
+  | 'loading-code'
   | 'downloading'
+  | 'preparing-engine'
   | 'initializing'
   | 'ready'
   | 'error';
@@ -16,6 +25,8 @@ export type FaceLoadSnapshot = {
   progress: number;
   stage: FaceLoadStage;
   cacheHit: boolean;
+  loadedBytes: number;
+  totalBytes: number;
 };
 
 export type PreparedFaceRuntime = {
@@ -29,6 +40,8 @@ let snapshot: FaceLoadSnapshot = {
   progress: 0,
   stage: 'idle',
   cacheHit: false,
+  loadedBytes: 0,
+  totalBytes: EXPECTED_MODEL_BYTES,
 };
 const listeners = new Set<(next: FaceLoadSnapshot) => void>();
 
@@ -41,15 +54,117 @@ function publish(next: Partial<FaceLoadSnapshot>) {
   listeners.forEach((listener) => listener(snapshot));
 }
 
+async function readStreamWithProgress(response: Response) {
+  const declaredBytes = Number(response.headers.get('content-length'));
+  const totalBytes = response.headers.has('content-encoding')
+    ? EXPECTED_MODEL_BYTES
+    : declaredBytes || EXPECTED_MODEL_BYTES;
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const buffer = await response.arrayBuffer();
+    publish({
+      progress: 0.68,
+      loadedBytes: buffer.byteLength,
+      totalBytes: buffer.byteLength,
+    });
+    return buffer;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let loadedBytes = 0;
+
+  while (true) {
+    let timeoutId = 0;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error('Face model download stalled.')),
+        DOWNLOAD_STALL_TIMEOUT_MS,
+      );
+    });
+    const next = await Promise.race([reader.read(), timeout]).finally(() => {
+      window.clearTimeout(timeoutId);
+    });
+    if (next.done) break;
+
+    chunks.push(next.value);
+    loadedBytes += next.value.byteLength;
+    const ratio = Math.min(loadedBytes / totalBytes, 0.98);
+    publish({
+      progress: 0.14 + ratio * 0.54,
+      stage: 'downloading',
+      loadedBytes,
+      totalBytes: Math.max(totalBytes, loadedBytes),
+    });
+  }
+
+  const combined = new Uint8Array(loadedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  publish({ progress: 0.68, loadedBytes, totalBytes: loadedBytes });
+  return combined.buffer;
+}
+
+async function fetchWithTimeout(url: string, cacheMode: RequestCache) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    DOWNLOAD_STALL_TIMEOUT_MS,
+  );
+  try {
+    return await fetch(url, { cache: cacheMode, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function registerPersistentAssetCache() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register(VISION_CACHE_WORKER_PATH, {
+      scope: VISION_CACHE_SCOPE,
+    });
+  } catch {
+    // The runtime still works with the browser's normal HTTP cache.
+  }
+}
+
+function persistRuntimeAssets(fileset: {
+  wasmLoaderPath: string;
+  wasmBinaryPath: string;
+}) {
+  if (!('caches' in window)) return;
+  void caches
+    .open(VISION_ASSET_CACHE)
+    .then(async (cache) => {
+      await Promise.all(
+        [fileset.wasmLoaderPath, fileset.wasmBinaryPath].map(async (asset) => {
+          if (await cache.match(asset)) return;
+          const response = await fetch(asset, { cache: 'force-cache' });
+          if (response.ok) await cache.put(asset, response);
+        }),
+      );
+    })
+    .catch(() => undefined);
+}
+
 async function readModelBuffer() {
   let cache: Cache | null = null;
 
   if ('caches' in window) {
     try {
-      cache = await caches.open(MODEL_CACHE);
-      const cached = await cache.match(MODEL_PATH);
+      cache = await caches.open(VISION_ASSET_CACHE);
+      const cached = await cache.match(FACE_MODEL_PATH);
       if (cached) {
-        publish({ progress: 0.62, stage: 'downloading', cacheHit: true });
+        publish({
+          progress: 0.68,
+          stage: 'downloading',
+          cacheHit: true,
+          loadedBytes: EXPECTED_MODEL_BYTES,
+          totalBytes: EXPECTED_MODEL_BYTES,
+        });
         return cached.arrayBuffer();
       }
     } catch {
@@ -57,20 +172,33 @@ async function readModelBuffer() {
     }
   }
 
-  const response = await fetch(MODEL_PATH, { cache: 'force-cache' });
-  if (!response.ok) {
-    throw new Error(`Face model request failed (${response.status}).`);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_DOWNLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const modelUrl =
+        attempt === 0 ? FACE_MODEL_PATH : FACE_MODEL_FALLBACK_PATH;
+      const response = await fetchWithTimeout(
+        modelUrl,
+        attempt === 0 ? 'force-cache' : 'reload',
+      );
+      if (!response.ok) {
+        throw new Error(`Face model request failed (${response.status}).`);
+      }
+
+      const buffer = await readStreamWithProgress(response);
+      if (cache) {
+        const cachedResponse = new Response(buffer, {
+          headers: { 'content-type': 'application/octet-stream' },
+        });
+        void cache.put(FACE_MODEL_PATH, cachedResponse).catch(() => undefined);
+      }
+      return buffer;
+    } catch (error) {
+      lastError = error;
+      publish({ progress: 0.12, loadedBytes: 0, cacheHit: false });
+    }
   }
-
-  const cacheCopy = response.clone();
-  const buffer = await response.arrayBuffer();
-  publish({ progress: 0.62, stage: 'downloading', cacheHit: false });
-
-  if (cache) {
-    void cache.put(MODEL_PATH, cacheCopy).catch(() => undefined);
-  }
-
-  return buffer;
+  throw lastError ?? new Error('Face model download failed.');
 }
 
 export function getFaceLoadSnapshot() {
@@ -89,23 +217,30 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
   if (preparedRuntime) return Promise.resolve(preparedRuntime);
   if (runtimePromise) return runtimePromise;
 
-  snapshot = { progress: 0.04, stage: 'downloading', cacheHit: false };
+  snapshot = {
+    progress: 0.03,
+    stage: 'loading-code',
+    cacheHit: false,
+    loadedBytes: 0,
+    totalBytes: EXPECTED_MODEL_BYTES,
+  };
   publish(snapshot);
 
   runtimePromise = (async () => {
+    void registerPersistentAssetCache();
     // Start the model transfer immediately. It runs in parallel with loading and
     // compiling the MediaPipe WASM runtime instead of waiting for it to finish.
     const modelBufferPromise = readModelBuffer();
     const vision = await import('@mediapipe/tasks-vision');
-    publish({ progress: 0.18, stage: 'downloading' });
+    publish({ progress: 0.12, stage: 'downloading' });
 
     const [fileset, modelBuffer] = await Promise.all([
-      vision.FilesetResolver.forVisionTasks(WASM_PATH),
+      vision.FilesetResolver.forVisionTasks(VISION_WASM_PATH),
       modelBufferPromise,
     ]);
-    publish({ progress: 0.78, stage: 'initializing' });
+    publish({ progress: 0.72, stage: 'preparing-engine' });
 
-    const instance = await vision.FaceLandmarker.createFromOptions(fileset, {
+    const instancePromise = vision.FaceLandmarker.createFromOptions(fileset, {
       baseOptions: {
         modelAssetBuffer: new Uint8Array(modelBuffer),
         delegate: 'CPU',
@@ -119,12 +254,21 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
       minTrackingConfidence: 0.5,
     });
 
+    publish({ progress: 0.86, stage: 'initializing' });
+    const instance = await instancePromise;
+    persistRuntimeAssets(fileset);
     preparedRuntime = { instance, runtime: vision.FaceLandmarker };
     publish({ progress: 1, stage: 'ready' });
     return preparedRuntime;
   })().catch((error) => {
     runtimePromise = null;
-    snapshot = { progress: 0, stage: 'error', cacheHit: false };
+    snapshot = {
+      progress: 0,
+      stage: 'error',
+      cacheHit: false,
+      loadedBytes: 0,
+      totalBytes: EXPECTED_MODEL_BYTES,
+    };
     listeners.forEach((listener) => listener(snapshot));
     throw error;
   });

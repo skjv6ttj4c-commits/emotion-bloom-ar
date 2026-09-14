@@ -418,5 +418,7 @@ export function useFaceLandmarker(
     loadProgress,
     loadStage,
     modelCacheHit,
+    loadedBytes: getFaceLoadSnapshot().loadedBytes,
+    totalBytes: getFaceLoadSnapshot().totalBytes,
   };
 }

@@ -101,6 +101,8 @@ export default function Home() {
     loadProgress: faceLoadProgress,
     loadStage: faceLoadStage,
     modelCacheHit,
+    loadedBytes: faceLoadedBytes,
+    totalBytes: faceTotalBytes,
   } = useFaceLandmarker(videoRef, isActive, expressionSettings);
   const calibration = faceMetrics.signal.calibration;
   const handActions = useHandActions(
@@ -183,7 +185,13 @@ export default function Home() {
     !expressionWasRecognized;
   const experienceGuide =
     faceStatus === 'loading'
-      ? `SETTING THE STAGE · ${Math.round(faceLoadProgress * 100)}%`
+      ? faceLoadStage === 'downloading'
+        ? `DOWNLOADING FACE MODEL · ${Math.round((faceLoadedBytes / Math.max(faceTotalBytes, 1)) * 100)}%`
+        : faceLoadStage === 'loading-code'
+          ? 'LOADING THE VISION ENGINE'
+          : faceLoadStage === 'preparing-engine'
+            ? 'PREPARING ON-DEVICE VISION'
+            : 'STARTING FACE TRACKING'
       : faceStatus === 'error'
         ? 'FACE TRACKING IS UNAVAILABLE'
         : !faceMetrics.hasFace
@@ -206,7 +214,7 @@ export default function Home() {
         : 'MODEL READY · TAP TO JOIN'
       : faceLoadStage === 'error'
         ? 'TAP TO RETRY MODEL + CAMERA'
-        : `PREPARING THE STAGE · ${Math.round(faceLoadProgress * 100)}%`;
+        : 'OPEN NOW · SETUP CONTINUES IN BACKGROUND';
 
   useEffect(() => {
     if (!showPromptCarousel) return;

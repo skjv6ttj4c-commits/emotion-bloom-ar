@@ -81,9 +81,15 @@ async function readStreamWithProgress(response: Response) {
         DOWNLOAD_STALL_TIMEOUT_MS,
       );
     });
-    const next = await Promise.race([reader.read(), timeout]).finally(() => {
+    let next: ReadableStreamReadResult<Uint8Array>;
+    try {
+      next = await Promise.race([reader.read(), timeout]);
+    } catch (error) {
+      void reader.cancel().catch(() => undefined);
+      throw error;
+    } finally {
       window.clearTimeout(timeoutId);
-    });
+    }
     if (next.done) break;
 
     chunks.push(next.value);

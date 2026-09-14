@@ -54,6 +54,7 @@ const expressionGuides = [
     key: 'smile',
     label: 'SMILE',
     copy: 'Hey~ welcome in!',
+    instruction: 'GIVE THE ROOM A BIG SMILE',
     prompt: 'Fresh faces just joined — welcome them with a smile!',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/01-smile.jpg`,
   },
@@ -61,6 +62,7 @@ const expressionGuides = [
     key: 'laugh',
     label: 'LAUGH',
     copy: "LMAO! That's hilarious!",
+    instruction: 'NOW LAUGH OUT LOUD',
     prompt: 'Chat is on fire — let out your biggest laugh!',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/02-laugh.jpg`,
   },
@@ -68,6 +70,7 @@ const expressionGuides = [
     key: 'heart',
     label: 'HEART',
     copy: "Love y'all",
+    instruction: 'MAKE A HEART WITH BOTH HANDS',
     prompt: 'Love is pouring in — send a heart right back!',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/03-heart.jpg`,
   },
@@ -191,7 +194,7 @@ export default function Home() {
               ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
               : expressionWasRecognized
                 ? activeGuide.copy
-                : 'TRY A MOVE';
+                : activeGuide.instruction;
   const guideTone =
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'

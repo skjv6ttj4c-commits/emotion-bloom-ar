@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '@/camera/use-camera';
 import { useFaceLandmarker } from '@/face/use-face-landmarker';
 import {
@@ -53,32 +53,30 @@ const expressionGuides = [
   {
     key: 'smile',
     label: 'SMILE',
-    copy: 'Hey~ welcome in!',
-    instruction: 'GIVE THE ROOM A BIG SMILE',
-    prompt: 'Fresh faces just joined — welcome them with a smile!',
+    instruction: 'SMILE AT THE CAMERA',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/01-smile.jpg`,
   },
   {
     key: 'laugh',
     label: 'LAUGH',
-    copy: "LMAO! That's hilarious!",
-    instruction: 'NOW LAUGH OUT LOUD',
-    prompt: 'Chat is on fire — let out your biggest laugh!',
+    instruction: 'OPEN YOUR MOUTH AND LAUGH',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/02-laugh.jpg`,
   },
   {
     key: 'heart',
     label: 'HEART',
-    copy: "Love y'all",
     instruction: 'MAKE A HEART WITH BOTH HANDS',
-    prompt: 'Love is pouring in — send a heart right back!',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/03-heart.jpg`,
   },
 ] as const;
 
+type GuideStep = 0 | 1 | 2 | 3;
+
 export default function Home() {
   const [debugOpen, setDebugOpen] = useState(false);
-  const [promptIndex, setPromptIndex] = useState(0);
+  const [guideStep, setGuideStep] = useState<GuideStep>(0);
+  const laughTriggerBaseline = useRef(0);
+  const heartTriggerBaseline = useRef(0);
   const [expressionSettings, setExpressionSettings] =
     useState<ExpressionSettings>(DEFAULT_EXPRESSION_SETTINGS);
   const {
@@ -161,7 +159,7 @@ export default function Home() {
               ? '人脸质量不足：请正对镜头并靠近一些'
               : interactionDiagnostics.blocker;
   const heartVisualActive = effectsMetrics.heart.phase !== 'idle';
-  const selectedGuide =
+  const recognizedGuide =
     heartVisualActive || handActions.metrics.heartActive
       ? 2
       : ['laugh-entering', 'laughing', 'celebrating'].includes(
@@ -170,20 +168,9 @@ export default function Home() {
       ? 1
       : ['smile-entering', 'smiling'].includes(interactionState)
         ? 0
-        : promptIndex;
-  const activeGuide = expressionGuides[selectedGuide];
-  const expressionWasRecognized =
-    ['smile-entering', 'smiling'].includes(interactionState) ||
-    ['laugh-entering', 'laughing', 'celebrating'].includes(interactionState) ||
-    heartVisualActive ||
-    handActions.metrics.heartActive;
-  const showPromptCarousel =
-    isActive &&
-    faceStatus === 'running' &&
-    calibration.status === 'ready' &&
-    faceMetrics.signal.accepted &&
-    interactionState === 'neutral' &&
-    !expressionWasRecognized;
+        : null;
+  const selectedGuide = guideStep < 3 ? guideStep : recognizedGuide;
+  const guideComplete = guideStep === 3;
   const experienceGuide =
     faceStatus === 'loading'
       ? faceLoadStage === 'downloading'
@@ -201,9 +188,9 @@ export default function Home() {
             ? 'ONE MOMENT…'
             : !faceMetrics.signal.accepted
               ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
-              : expressionWasRecognized
-                ? activeGuide.copy
-                : activeGuide.instruction;
+              : guideStep < 3
+                ? expressionGuides[guideStep as 0 | 1 | 2].instruction
+                : '';
   const guideTone =
     faceStatus === 'loading' || calibration.status !== 'ready'
       ? 'preparing'
@@ -217,21 +204,58 @@ export default function Home() {
         ? 'TAP TO RETRY MODEL + CAMERA'
         : 'OPEN NOW · SETUP CONTINUES IN BACKGROUND';
 
+  const smileEffectVisible =
+    ['smile-entering', 'smiling'].includes(interactionState) &&
+    ['awakening', 'smile'].includes(effectsMetrics.bloom.stage) &&
+    effectsMetrics.bloom.activeElements > 5;
+
   useEffect(() => {
-    if (!showPromptCarousel) return;
+    if (!isActive) return;
 
-    const timer = window.setInterval(() => {
-      setPromptIndex((current) => (current + 1) % expressionGuides.length);
-    }, 4200);
+    let timer: number | undefined;
+    if (guideStep === 0 && smileEffectVisible) {
+      timer = window.setTimeout(() => {
+        laughTriggerBaseline.current = effectsMetrics.fireworks.triggerCount;
+        setGuideStep(1);
+      }, 650);
+    } else if (
+      guideStep === 1 &&
+      effectsMetrics.fireworks.triggerCount > laughTriggerBaseline.current
+    ) {
+      timer = window.setTimeout(() => {
+        heartTriggerBaseline.current = effectsMetrics.heart.triggerCount;
+        setGuideStep(2);
+      }, 850);
+    } else if (
+      guideStep === 2 &&
+      effectsMetrics.heart.triggerCount > heartTriggerBaseline.current
+    ) {
+      timer = window.setTimeout(() => setGuideStep(3), 850);
+    }
 
-    return () => window.clearInterval(timer);
-  }, [showPromptCarousel]);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [
+    effectsMetrics.fireworks.triggerCount,
+    effectsMetrics.heart.triggerCount,
+    guideStep,
+    isActive,
+    smileEffectVisible,
+  ]);
 
   function updateExpressionSetting(
     key: keyof ExpressionSettings,
     value: number,
   ) {
     setExpressionSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleStartCamera() {
+    setGuideStep(0);
+    laughTriggerBaseline.current = 0;
+    heartTriggerBaseline.current = 0;
+    void startCamera();
   }
 
   const pipelineItems = [
@@ -384,7 +408,7 @@ export default function Home() {
               <h2 id="camera-error-title">{error.title}</h2>
               <span>{error.message}</span>
             </div>
-            <button type="button" onClick={startCamera}>
+            <button type="button" onClick={handleStartCamera}>
               TRY AGAIN
             </button>
           </section>
@@ -409,7 +433,7 @@ export default function Home() {
         {isActive && !faceError ? (
           <>
             <section
-              className={`expression-guide guide-${guideTone}`}
+              className={`expression-guide guide-${guideTone} ${guideComplete ? 'is-complete' : ''}`}
               aria-label="Expression guide"
             >
               <span className="expression-guide-label">试试这些动作吧～</span>
@@ -419,9 +443,10 @@ export default function Home() {
                     <button
                       type="button"
                       className={selectedGuide === index ? 'is-selected' : ''}
-                      aria-label={`${guide.label}: ${guide.copy}`}
-                      aria-pressed={selectedGuide === index}
-                      onClick={() => setPromptIndex(index)}
+                      aria-label={`${guide.label}: ${guide.instruction}`}
+                      aria-current={selectedGuide === index ? 'step' : undefined}
+                      aria-disabled="true"
+                      tabIndex={-1}
                     >
                       <Image
                         src={guide.image}
@@ -436,29 +461,17 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              {showPromptCarousel ? (
-                <aside
-                  key={promptIndex}
-                  className={`guide-dialog guide-dialog-${promptIndex}`}
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  <strong>{expressionGuides[promptIndex].prompt}</strong>
-                </aside>
-              ) : null}
             </section>
-            <output
-              className={`expression-feedback ${expressionWasRecognized ? 'is-hit' : ''}`}
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <small>
-                {expressionWasRecognized
-                  ? `${String(selectedGuide + 1).padStart(2, '0')} / 03 · ${activeGuide.label}`
-                  : 'PIXEL LIVE'}
-              </small>
-              <strong>{experienceGuide}</strong>
-            </output>
+            {!guideComplete ? (
+              <output
+                key={guideStep}
+                className="expression-feedback"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <strong>{experienceGuide}</strong>
+              </output>
+            ) : null}
           </>
         ) : null}
 
@@ -467,7 +480,7 @@ export default function Home() {
             className={`primary-action ${isActive ? 'stop-action' : ''}`}
             type="button"
             aria-label={isActive ? 'Turn off camera' : 'Open camera'}
-            onClick={isActive ? stopCamera : startCamera}
+            onClick={isActive ? stopCamera : handleStartCamera}
             disabled={isRequesting}
           >
             <span className="action-icon" aria-hidden="true" />

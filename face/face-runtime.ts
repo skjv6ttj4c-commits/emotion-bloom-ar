@@ -131,23 +131,24 @@ async function registerPersistentAssetCache() {
   }
 }
 
-function persistRuntimeAssets(fileset: {
+function prefetchRuntimeAssets(fileset: {
   wasmLoaderPath: string;
   wasmBinaryPath: string;
 }) {
-  if (!('caches' in window)) return;
-  void caches
-    .open(VISION_ASSET_CACHE)
-    .then(async (cache) => {
-      await Promise.all(
-        [fileset.wasmLoaderPath, fileset.wasmBinaryPath].map(async (asset) => {
-          if (await cache.match(asset)) return;
-          const response = await fetch(asset, { cache: 'force-cache' });
-          if (response.ok) await cache.put(asset, response);
-        }),
-      );
-    })
-    .catch(() => undefined);
+  void (async () => {
+    const cache =
+      'caches' in window ? await caches.open(VISION_ASSET_CACHE) : null;
+    await Promise.all(
+      [fileset.wasmLoaderPath, fileset.wasmBinaryPath].map(async (asset) => {
+        const response = await fetchWithTimeout(asset, 'force-cache');
+        if (!response.ok) return;
+        if (cache) {
+          void cache.put(asset, response.clone()).catch(() => undefined);
+        }
+        await response.arrayBuffer();
+      }),
+    );
+  })().catch(() => undefined);
 }
 
 async function readModelBuffer() {
@@ -234,10 +235,13 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
     const vision = await import('@mediapipe/tasks-vision');
     publish({ progress: 0.12, stage: 'downloading' });
 
-    const [fileset, modelBuffer] = await Promise.all([
-      vision.FilesetResolver.forVisionTasks(VISION_WASM_PATH),
-      modelBufferPromise,
-    ]);
+    const fileset =
+      await vision.FilesetResolver.forVisionTasks(VISION_WASM_PATH);
+    // Warm the exact SIMD or non-SIMD runtime selected for this device while the
+    // face model is still transferring. The UI has already hydrated, so these
+    // large assets cannot delay the camera button from becoming interactive.
+    prefetchRuntimeAssets(fileset);
+    const modelBuffer = await modelBufferPromise;
     publish({ progress: 0.72, stage: 'preparing-engine' });
 
     const instancePromise = vision.FaceLandmarker.createFromOptions(fileset, {
@@ -256,7 +260,6 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
 
     publish({ progress: 0.86, stage: 'initializing' });
     const instance = await instancePromise;
-    persistRuntimeAssets(fileset);
     preparedRuntime = { instance, runtime: vision.FaceLandmarker };
     publish({ progress: 1, stage: 'ready' });
     return preparedRuntime;

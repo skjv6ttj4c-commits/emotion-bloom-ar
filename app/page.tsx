@@ -140,6 +140,7 @@ export default function Home() {
     transitions[0],
     faceMetrics.headCollider,
     handActions.trigger,
+    faceLoadStage === 'ready',
   );
   const facePipelineStatus =
     faceStatus === 'running' && calibration.status !== 'ready'

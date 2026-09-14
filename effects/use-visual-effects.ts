@@ -42,6 +42,7 @@ export function useVisualEffects(
   latestTransition: TransitionRecord | undefined,
   headCollider: HeadCollider,
   latestHandTrigger: HandActionTrigger | null,
+  enabled = true,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<VisualEffectsEngineType | null>(null);
@@ -87,6 +88,7 @@ export function useVisualEffects(
   }, [headCollider]);
 
   useEffect(() => {
+    if (!enabled) return;
     const host = hostRef.current;
     if (!host) return;
     let cancelled = false;
@@ -133,7 +135,7 @@ export function useVisualEffects(
       engineRef.current = null;
       engine?.destroy();
     };
-  }, []);
+  }, [enabled]);
 
   return { hostRef, status, metrics, error };
 }

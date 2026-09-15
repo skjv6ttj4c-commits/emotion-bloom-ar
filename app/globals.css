@@ -1605,6 +1605,26 @@ body {
   font-size: 12px;
 }
 
+.camera-idle .primary-action.is-preparing {
+  cursor: progress;
+  opacity: 1;
+  animation: none;
+  box-shadow:
+    6px 6px 0 color-mix(in srgb, var(--pixel-blue) 68%, white),
+    10px 10px 0 color-mix(in srgb, var(--pixel-yellow) 58%, white);
+}
+
+.camera-idle .primary-action.is-preparing .action-icon {
+  animation: model-ready-pulse 1.2s steps(2, end) infinite;
+}
+
+@keyframes model-ready-pulse {
+  50% {
+    filter: brightness(1.55);
+    transform: scale(0.9);
+  }
+}
+
 .camera-idle .action-icon,
 .camera-error .action-icon,
 .camera-requesting .action-icon {

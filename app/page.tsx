@@ -50,6 +50,10 @@ export default function Home() {
     loadedBytes: faceLoadedBytes,
     totalBytes: faceTotalBytes,
   } = useFaceLandmarker(videoRef, isActive);
+  const modelReady = faceLoadStage === 'ready';
+  const modelFailed = faceLoadStage === 'error';
+  const modelPreparing = !modelReady && !modelFailed;
+  const modelProgressPercent = Math.round(faceLoadProgress * 100);
   const {
     state: interactionState,
     transitions,
@@ -96,13 +100,13 @@ export default function Home() {
               : '';
   const guideTone = faceStatus === 'loading' ? 'preparing' : interactionState;
   const coverWarmupCopy =
-    faceLoadStage === 'ready'
+    modelReady
       ? modelCacheHit
         ? 'MODEL READY · CACHED ON THIS DEVICE'
         : 'MODEL READY · TAP TO JOIN'
-      : faceLoadStage === 'error'
-        ? 'TAP TO RETRY MODEL + CAMERA'
-        : 'OPEN NOW · SETUP CONTINUES IN BACKGROUND';
+      : modelFailed
+        ? 'FACE MODEL FAILED · TAP TO RETRY'
+        : 'CAMERA UNLOCKS AS SOON AS FACE TRACKING IS READY';
   const smileEffectVisible =
     ['smile-entering', 'smiling'].includes(interactionState) &&
     ['awakening', 'smile'].includes(effectsMetrics.bloom.stage) &&
@@ -128,6 +132,11 @@ export default function Home() {
   }, [effectsMetrics.fireworks.triggerCount, guideStep, isActive, smileEffectVisible]);
 
   function handleStartCamera() {
+    if (modelFailed) {
+      window.location.reload();
+      return;
+    }
+    if (!modelReady) return;
     setGuideStep(0);
     laughTriggerBaseline.current = 0;
     void startCamera();
@@ -176,7 +185,11 @@ export default function Home() {
           <div className="stage-copy">
             <p className="eyebrow">FACE-LED LIVE EFFECTS / 001</p>
             <h1 id="stage-title">WELCOME BACK<br />TO THE LIVE ROOM.</h1>
-            <p className="stage-description">Turn on your camera. Your expressions run the show.</p>
+            <p className="stage-description">
+              {modelPreparing
+                ? 'Preparing face effects first, so your smile responds instantly.'
+                : 'Turn on your camera. Your expressions run the show.'}
+            </p>
           </div>
         ) : (
           <h1 className="visually-hidden" id="stage-title">Pixel Live expression studio</h1>
@@ -230,18 +243,37 @@ export default function Home() {
 
         <div className="control-dock">
           <button
-            className={`primary-action ${isActive ? 'stop-action' : ''}`}
+            className={`primary-action ${isActive ? 'stop-action' : ''} ${modelPreparing ? 'is-preparing' : ''}`}
             type="button"
-            aria-label={isActive ? 'Turn off camera' : 'Open camera'}
+            aria-label={
+              isActive
+                ? 'Turn off camera'
+                : modelPreparing
+                  ? `Preparing face tracking, ${modelProgressPercent} percent`
+                  : modelFailed
+                    ? 'Retry face model'
+                    : 'Open camera'
+            }
+            aria-busy={modelPreparing || isRequesting}
             onClick={isActive ? stopCamera : handleStartCamera}
-            disabled={isRequesting}
+            disabled={isRequesting || modelPreparing}
           >
             <span className="action-icon" aria-hidden="true" />
             <span>
-              <strong>{isRequesting ? 'CONNECTING…' : isActive ? 'END SESSION' : error ? 'TRY AGAIN' : 'OPEN CAMERA'}</strong>
+              <strong>
+                {isRequesting
+                  ? 'CONNECTING…'
+                  : isActive
+                    ? 'END SESSION'
+                    : modelPreparing
+                      ? `PREPARING · ${modelProgressPercent}%`
+                      : modelFailed || error
+                        ? 'TRY AGAIN'
+                        : 'OPEN CAMERA'}
+              </strong>
               <small>{isActive ? 'STOP VIDEO STREAM' : coverWarmupCopy}</small>
             </span>
-            {!isActive && faceLoadStage !== 'error' ? (
+            {!isActive && !modelFailed ? (
               <i className="model-load-bar" aria-hidden="true"><span style={{ width: `${faceLoadProgress * 100}%` }} /></i>
             ) : null}
           </button>

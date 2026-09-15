@@ -10,8 +10,6 @@ export type CameraError = {
   kind: 'unsupported' | 'insecure' | 'denied' | 'missing' | 'busy' | 'unknown';
 };
 
-type VideoSize = { width: number; height: number } | null;
-
 function describeCameraError(error: unknown): CameraError {
   if (!window.isSecureContext) {
     return {
@@ -67,7 +65,6 @@ export function useCamera() {
   const mountedRef = useRef(true);
   const [status, setStatus] = useState<CameraStatus>('idle');
   const [error, setError] = useState<CameraError | null>(null);
-  const [videoSize, setVideoSize] = useState<VideoSize>(null);
 
   const releaseStream = useCallback(() => {
     requestIdRef.current += 1;
@@ -80,7 +77,6 @@ export function useCamera() {
     releaseStream();
     setStatus('idle');
     setError(null);
-    setVideoSize(null);
   }, [releaseStream]);
 
   const startCamera = useCallback(async () => {
@@ -133,7 +129,6 @@ export function useCamera() {
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
       setStatus('active');
-      setVideoSize({ width: videoRef.current.videoWidth, height: videoRef.current.videoHeight });
     } catch (caughtError) {
       stream?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -142,13 +137,6 @@ export function useCamera() {
       setError(describeCameraError(caughtError));
     }
   }, [releaseStream]);
-
-  const updateVideoSize = useCallback(() => {
-    const video = videoRef.current;
-    if (video?.videoWidth && video.videoHeight) {
-      setVideoSize({ width: video.videoWidth, height: video.videoHeight });
-    }
-  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -162,5 +150,5 @@ export function useCamera() {
     };
   }, [releaseStream]);
 
-  return { videoRef, status, error, videoSize, startCamera, stopCamera, updateVideoSize };
+  return { videoRef, status, error, startCamera, stopCamera };
 }

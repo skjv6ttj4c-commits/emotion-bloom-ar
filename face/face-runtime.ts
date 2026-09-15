@@ -137,26 +137,6 @@ async function registerPersistentAssetCache() {
   }
 }
 
-function prefetchRuntimeAssets(fileset: {
-  wasmLoaderPath: string;
-  wasmBinaryPath: string;
-}) {
-  void (async () => {
-    const cache =
-      'caches' in window ? await caches.open(VISION_ASSET_CACHE) : null;
-    await Promise.all(
-      [fileset.wasmLoaderPath, fileset.wasmBinaryPath].map(async (asset) => {
-        const response = await fetchWithTimeout(asset, 'force-cache');
-        if (!response.ok) return;
-        if (cache) {
-          void cache.put(asset, response.clone()).catch(() => undefined);
-        }
-        await response.arrayBuffer();
-      }),
-    );
-  })().catch(() => undefined);
-}
-
 async function readModelBuffer() {
   let cache: Cache | null = null;
 
@@ -243,20 +223,19 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
 
     const fileset =
       await vision.FilesetResolver.forVisionTasks(VISION_WASM_PATH);
-    // Warm the exact SIMD or non-SIMD runtime selected for this device while the
-    // face model is still transferring. The UI has already hydrated, so these
-    // large assets cannot delay the camera button from becoming interactive.
-    prefetchRuntimeAssets(fileset);
     const modelBuffer = await modelBufferPromise;
     publish({ progress: 0.72, stage: 'preparing-engine' });
 
     publish({ progress: 0.86, stage: 'initializing' });
+    const isIos =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const reducedDevice =
+      window.innerWidth <= 720 || (navigator.hardwareConcurrency ?? 8) <= 4;
     const baseOptions = {
       modelAssetBuffer: new Uint8Array(modelBuffer),
-      delegate:
-        window.innerWidth <= 720 || (navigator.hardwareConcurrency ?? 8) <= 4
-          ? ('GPU' as const)
-          : ('CPU' as const),
+      // Avoid iOS WebKit's expensive failed-GPU-then-CPU startup path.
+      delegate: isIos || !reducedDevice ? ('CPU' as const) : ('GPU' as const),
     };
     let instance: FaceLandmarker;
     try {

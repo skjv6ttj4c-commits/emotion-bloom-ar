@@ -64,9 +64,6 @@ export type VisualTextureLibrary = {
   pixelStar: Texture;
   pixelFlower: Texture;
   pixelSmile: Texture;
-  pixelHeart: Texture;
-  pixelBolt: Texture;
-  pixelCross: Texture;
 };
 
 function makeCanvas(width: number, height = width) {
@@ -359,57 +356,6 @@ function createPixelSmileTexture() {
   ]);
 }
 
-function createPixelHeartTexture() {
-  return createPixelMotifTexture(
-    [
-      '...####...####...',
-      '..######.######..',
-      '.###############.',
-      '#################',
-      '#################',
-      '.###############.',
-      '..#############..',
-      '...###########...',
-      '....#########....',
-      '.....#######.....',
-      '......#####......',
-      '.......###.......',
-      '........#........',
-    ],
-    6,
-  );
-}
-
-function createPixelBoltTexture() {
-  return createPixelMotifTexture(
-    [
-      '......###',
-      '.....###.',
-      '....###..',
-      '...####..',
-      '..######.',
-      '....###..',
-      '...###...',
-      '..###....',
-      '.###.....',
-      '###......',
-    ],
-    6,
-  );
-}
-
-function createPixelCrossTexture() {
-  return createPixelMotifTexture([
-    '...#...',
-    '...#...',
-    '...#...',
-    '#######',
-    '...#...',
-    '...#...',
-    '...#...',
-  ]);
-}
-
 export function createVisualTextureLibrary(): VisualTextureLibrary {
   return {
     softDot: createSoftDotTexture(),
@@ -425,9 +371,6 @@ export function createVisualTextureLibrary(): VisualTextureLibrary {
     pixelStar: createPixelStarTexture(),
     pixelFlower: createPixelFlowerTexture(),
     pixelSmile: createPixelSmileTexture(),
-    pixelHeart: createPixelHeartTexture(),
-    pixelBolt: createPixelBoltTexture(),
-    pixelCross: createPixelCrossTexture(),
   };
 }
 

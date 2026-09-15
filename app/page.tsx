@@ -4,17 +4,8 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useCamera } from '@/camera/use-camera';
 import { useFaceLandmarker } from '@/face/use-face-landmarker';
-import {
-  DEFAULT_EXPRESSION_SETTINGS,
-  type ExpressionSettings,
-} from '@/face/expression-signal';
-import {
-  useInteractionState,
-  type SimulationMode,
-} from '@/interaction/use-interaction-state';
-import { DEFAULT_STATE_MACHINE_SETTINGS } from '@/interaction/expression-state-machine';
+import { useInteractionState } from '@/interaction/use-interaction-state';
 import { useVisualEffects } from '@/effects/use-visual-effects';
-import { useHandActions } from '@/hand/use-hand-actions';
 
 const statusCopy = {
   idle: 'STANDBY',
@@ -22,32 +13,6 @@ const statusCopy = {
   active: 'CAMERA LIVE',
   error: 'ACTION NEEDED',
 } as const;
-
-const faceStatusCopy = {
-  idle: '等待摄像头',
-  loading: '正在加载模型',
-  ready: '模型已就绪',
-  running: '正在识别',
-  error: '模型异常',
-} as const;
-
-const interactionStateCopy = {
-  'no-face': { label: 'NO FACE', detail: '等待你回到镜头' },
-  neutral: { label: 'NEUTRAL', detail: '极光正在呼吸' },
-  'smile-entering': { label: 'AWAKENING', detail: '第一束像素雨正在落下' },
-  smiling: { label: 'SMILING', detail: '彩色数字雨随笑容流动' },
-  'laugh-entering': { label: 'CHARGING', detail: '快乐能量正在过载' },
-  laughing: { label: 'LAUGHING', detail: '准备绽放' },
-  celebrating: { label: 'OVERLOAD', detail: '快乐超载了' },
-  cooldown: { label: 'AFTERGLOW', detail: '彩色余韵缓缓落下' },
-} as const;
-
-const simulationCopy: Record<SimulationMode, string> = {
-  live: '实时',
-  neutral: '中性',
-  smile: '微笑',
-  laugh: '大笑',
-};
 
 const expressionGuides = [
   {
@@ -62,31 +27,15 @@ const expressionGuides = [
     instruction: 'OPEN YOUR MOUTH AND LAUGH',
     image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/02-laugh.jpg`,
   },
-  {
-    key: 'heart',
-    label: 'HEART',
-    instruction: 'MAKE A HEART WITH BOTH HANDS',
-    image: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/guides/03-heart.jpg`,
-  },
 ] as const;
 
-type GuideStep = 0 | 1 | 2 | 3;
+type GuideStep = 0 | 1 | 2;
 
 export default function Home() {
-  const [debugOpen, setDebugOpen] = useState(false);
   const [guideStep, setGuideStep] = useState<GuideStep>(0);
   const laughTriggerBaseline = useRef(0);
-  const heartTriggerBaseline = useRef(0);
-  const [expressionSettings, setExpressionSettings] =
-    useState<ExpressionSettings>(DEFAULT_EXPRESSION_SETTINGS);
   const {
-    videoRef,
-    status,
-    error,
-    videoSize,
-    startCamera,
-    stopCamera,
-    updateVideoSize,
+    videoRef, status, error, startCamera, stopCamera,
   } = useCamera();
   const isActive = status === 'active';
   const isRequesting = status === 'requesting';
@@ -100,65 +49,33 @@ export default function Home() {
     modelCacheHit,
     loadedBytes: faceLoadedBytes,
     totalBytes: faceTotalBytes,
-  } = useFaceLandmarker(videoRef, isActive, expressionSettings, debugOpen);
-  const handActions = useHandActions(
-    videoRef,
-    isActive && faceStatus === 'running' && guideStep >= 2,
-    isActive && faceStatus === 'running' && guideStep >= 1,
-  );
+  } = useFaceLandmarker(videoRef, isActive);
   const {
     state: interactionState,
-    simulationMode,
-    setSimulationMode,
     transitions,
-    clearTransitions,
-    effectiveInput,
     diagnostics: interactionDiagnostics,
   } = useInteractionState({
     smile: faceMetrics.signal.normalized.smile,
     jawOpen: faceMetrics.signal.normalized.jawOpen,
-    valid:
-      faceMetrics.hasFace &&
-      faceMetrics.signal.accepted,
+    valid: faceMetrics.hasFace && faceMetrics.signal.accepted,
   });
-  const {
-    hostRef: effectsHostRef,
-    status: effectsStatus,
-    metrics: effectsMetrics,
-    error: effectsError,
-  } = useVisualEffects(
+  const { hostRef: effectsHostRef, metrics: effectsMetrics } = useVisualEffects(
     interactionState,
     interactionDiagnostics.expressionEnergy,
     transitions[0],
     faceMetrics.headCollider,
-    handActions.trigger,
     faceLoadStage === 'ready',
   );
-  const facePipelineStatus =
-    faceStatus === 'running' ? '信号已标准化' : faceStatusCopy[faceStatus];
-  const laughBlocker =
-    simulationMode !== 'live'
-      ? interactionDiagnostics.blocker
-      : !isActive
-        ? '请先启动摄像头'
-        : !faceMetrics.hasFace
-          ? '未检测到人脸，请将脸移入框内'
-          : !faceMetrics.signal.accepted
-            ? '人脸质量不足：请正对镜头并靠近一些'
-            : interactionDiagnostics.blocker;
-  const heartVisualActive = effectsMetrics.heart.phase !== 'idle';
-  const recognizedGuide =
-    heartVisualActive || handActions.metrics.heartActive
-      ? 2
-      : ['laugh-entering', 'laughing', 'celebrating'].includes(
-          interactionState,
-        )
-      ? 1
-      : ['smile-entering', 'smiling'].includes(interactionState)
-        ? 0
-        : null;
-  const selectedGuide = guideStep < 3 ? guideStep : recognizedGuide;
-  const guideComplete = guideStep === 3;
+
+  const recognizedGuide = ['laugh-entering', 'laughing', 'celebrating'].includes(
+    interactionState,
+  )
+    ? 1
+    : ['smile-entering', 'smiling'].includes(interactionState)
+      ? 0
+      : null;
+  const selectedGuide = guideStep < 2 ? guideStep : recognizedGuide;
+  const guideComplete = guideStep === 2;
   const experienceGuide =
     faceStatus === 'loading'
       ? faceLoadStage === 'downloading'
@@ -174,11 +91,10 @@ export default function Home() {
           ? 'MOVE INTO FRAME'
           : !faceMetrics.signal.accepted
             ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
-            : guideStep < 3
-              ? expressionGuides[guideStep as 0 | 1 | 2].instruction
+            : guideStep < 2
+              ? expressionGuides[guideStep as 0 | 1].instruction
               : '';
-  const guideTone =
-    faceStatus === 'loading' ? 'preparing' : interactionState;
+  const guideTone = faceStatus === 'loading' ? 'preparing' : interactionState;
   const coverWarmupCopy =
     faceLoadStage === 'ready'
       ? modelCacheHit
@@ -187,7 +103,6 @@ export default function Home() {
       : faceLoadStage === 'error'
         ? 'TAP TO RETRY MODEL + CAMERA'
         : 'OPEN NOW · SETUP CONTINUES IN BACKGROUND';
-
   const smileEffectVisible =
     ['smile-entering', 'smiling'].includes(interactionState) &&
     ['awakening', 'smile'].includes(effectsMetrics.bloom.stage) &&
@@ -195,7 +110,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!isActive) return;
-
     let timer: number | undefined;
     if (guideStep === 0 && smileEffectVisible) {
       timer = window.setTimeout(() => {
@@ -206,135 +120,44 @@ export default function Home() {
       guideStep === 1 &&
       effectsMetrics.fireworks.triggerCount > laughTriggerBaseline.current
     ) {
-      timer = window.setTimeout(() => {
-        heartTriggerBaseline.current = effectsMetrics.heart.triggerCount;
-        setGuideStep(2);
-      }, 850);
-    } else if (
-      guideStep === 2 &&
-      effectsMetrics.heart.triggerCount > heartTriggerBaseline.current
-    ) {
-      timer = window.setTimeout(() => setGuideStep(3), 850);
+      timer = window.setTimeout(() => setGuideStep(2), 850);
     }
-
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [
-    effectsMetrics.fireworks.triggerCount,
-    effectsMetrics.heart.triggerCount,
-    guideStep,
-    isActive,
-    smileEffectVisible,
-  ]);
-
-  function updateExpressionSetting(
-    key: keyof ExpressionSettings,
-    value: number,
-  ) {
-    setExpressionSettings((current) => ({ ...current, [key]: value }));
-  }
+  }, [effectsMetrics.fireworks.triggerCount, guideStep, isActive, smileEffectVisible]);
 
   function handleStartCamera() {
     setGuideStep(0);
     laughTriggerBaseline.current = 0;
-    heartTriggerBaseline.current = 0;
     void startCamera();
   }
 
-  const pipelineItems = [
-    { label: '摄像头', value: statusCopy[status], active: isActive },
-    {
-      label: '表情识别',
-      value: facePipelineStatus,
-      active: faceStatus === 'running' && faceMetrics.signal.accepted,
-    },
-    {
-      label: '手势识别',
-      value:
-        handActions.status === 'running'
-          ? `${handActions.metrics.hands} HANDS`
-          : handActions.status.toUpperCase(),
-      active: handActions.status === 'running',
-    },
-    {
-      label: '互动状态',
-      value: interactionStateCopy[interactionState].label,
-      active: !['no-face', 'neutral'].includes(interactionState),
-    },
-    {
-      label: '粒子引擎',
-      value:
-        effectsStatus === 'ready'
-          ? ['smile-entering', 'smiling'].includes(interactionState)
-            ? 'FACE BLOOM'
-            : interactionState === 'celebrating'
-              ? 'FLOWER BLOOM'
-              : 'PixiJS 已就绪'
-          : effectsStatus === 'error'
-            ? '初始化失败'
-            : '正在初始化',
-      active: effectsStatus === 'ready',
-    },
-    {
-      label: '头部碰撞',
-      value: faceMetrics.headCollider.valid ? '实时跟踪中' : '等待人脸',
-      active: faceMetrics.headCollider.valid,
-    },
-  ];
-
   return (
-    <main
-      className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}
-    >
+    <main className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}>
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
 
       <header className="topbar">
         <a className="brand" href="#stage" aria-label="Pixel Live home">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-          </span>
+          <span className="brand-mark" aria-hidden="true"><span /></span>
           <span>PIXEL LIVE</span>
         </a>
         <output className="status-pill">
           <span className={`status-dot ${status}`} aria-hidden="true" />
           {statusCopy[status]}
         </output>
-        <div className="topbar-actions">
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={debugOpen ? '关闭调试面板' : '打开调试面板'}
-            aria-expanded={debugOpen}
-            onClick={() => setDebugOpen((current) => !current)}
-          >
-            <span aria-hidden="true">{debugOpen ? '×' : '•••'}</span>
-          </button>
-        </div>
       </header>
 
       <section className="stage" id="stage" aria-labelledby="stage-title">
         <video
           ref={videoRef}
           className="camera-video"
-          autoPlay
-          muted
-          playsInline
+          autoPlay muted playsInline
           aria-label="前置摄像头实时画面"
-          onLoadedMetadata={updateVideoSize}
-          onResize={updateVideoSize}
         />
-        <div
-          ref={effectsHostRef}
-          className="effects-layer"
-          aria-hidden="true"
-        />
-        <canvas
-          ref={faceCanvasRef}
-          className={`face-overlay ${debugOpen ? 'is-debug' : ''}`}
-          aria-hidden="true"
-        />
+        <div ref={effectsHostRef} className="effects-layer" aria-hidden="true" />
+        <canvas ref={faceCanvasRef} className="face-overlay" aria-hidden="true" />
         <div className="video-shade" aria-hidden="true" />
         <div className="stage-grid" aria-hidden="true" />
         <div className="camera-frame" aria-hidden="true">
@@ -352,75 +175,33 @@ export default function Home() {
         {!isActive ? (
           <div className="stage-copy">
             <p className="eyebrow">FACE-LED LIVE EFFECTS / 001</p>
-            <h1 id="stage-title">
-              WELCOME BACK
-              <br />
-              TO THE LIVE ROOM.
-            </h1>
-            <p className="stage-description">
-              Turn on your camera. Your expressions run the show.
-            </p>
+            <h1 id="stage-title">WELCOME BACK<br />TO THE LIVE ROOM.</h1>
+            <p className="stage-description">Turn on your camera. Your expressions run the show.</p>
           </div>
         ) : (
-          <h1 className="visually-hidden" id="stage-title">
-            Pixel Live expression studio
-          </h1>
+          <h1 className="visually-hidden" id="stage-title">Pixel Live expression studio</h1>
         )}
-
-        {debugOpen ? (
-          <output className="interaction-state-badge">
-            <span className="state-orb" aria-hidden="true" />
-            <span>
-              <small>
-                {simulationMode === 'live'
-                  ? 'LIVE STATE'
-                  : `SIMULATION · ${simulationCopy[simulationMode]}`}
-              </small>
-              <strong>{interactionStateCopy[interactionState].label}</strong>
-            </span>
-            <i>{interactionStateCopy[interactionState].detail}</i>
-          </output>
-        ) : null}
 
         {error ? (
           <section className="error-card" aria-labelledby="camera-error-title">
-            <span className="error-symbol" aria-hidden="true">
-              !
-            </span>
-            <div>
-              <p>CAMERA UNAVAILABLE</p>
-              <h2 id="camera-error-title">{error.title}</h2>
-              <span>{error.message}</span>
-            </div>
-            <button type="button" onClick={handleStartCamera}>
-              TRY AGAIN
-            </button>
+            <span className="error-symbol" aria-hidden="true">!</span>
+            <div><p>CAMERA UNAVAILABLE</p><h2 id="camera-error-title">{error.title}</h2><span>{error.message}</span></div>
+            <button type="button" onClick={handleStartCamera}>TRY AGAIN</button>
           </section>
         ) : null}
 
         {faceError && isActive ? (
           <section className="error-card" aria-labelledby="face-error-title">
-            <span className="error-symbol" aria-hidden="true">
-              !
-            </span>
-            <div>
-              <p>FACE MODEL ERROR</p>
-              <h2 id="face-error-title">Expression tracking could not start</h2>
-              <span>{faceError}</span>
-            </div>
-            <button type="button" onClick={() => window.location.reload()}>
-              RELOAD
-            </button>
+            <span className="error-symbol" aria-hidden="true">!</span>
+            <div><p>FACE MODEL ERROR</p><h2 id="face-error-title">Expression tracking could not start</h2><span>{faceError}</span></div>
+            <button type="button" onClick={() => window.location.reload()}>RELOAD</button>
           </section>
         ) : null}
 
         {isActive && !faceError ? (
           <>
-            <section
-              className={`expression-guide guide-${guideTone} ${guideComplete ? 'is-complete' : ''}`}
-              aria-label="Expression guide"
-            >
-              <span className="expression-guide-label">试试这些动作吧～</span>
+            <section className={`expression-guide guide-${guideTone} ${guideComplete ? 'is-complete' : ''}`} aria-label="Expression guide">
+              <span className="expression-guide-label">试试这些表情吧～</span>
               <ul className="expression-strip">
                 {expressionGuides.map((guide, index) => (
                   <li key={guide.key}>
@@ -432,14 +213,7 @@ export default function Home() {
                       aria-disabled="true"
                       tabIndex={-1}
                     >
-                      <Image
-                        src={guide.image}
-                        alt=""
-                        width={104}
-                        height={104}
-                        sizes="(max-width: 720px) 81px, 117px"
-                        priority={index < 2}
-                      />
+                      <Image src={guide.image} alt="" width={104} height={104} sizes="(max-width: 720px) 81px, 117px" priority />
                       <span>{String(index + 1).padStart(2, '0')}</span>
                     </button>
                   </li>
@@ -447,12 +221,7 @@ export default function Home() {
               </ul>
             </section>
             {!guideComplete ? (
-              <output
-                key={guideStep}
-                className="expression-feedback"
-                aria-live="polite"
-                aria-atomic="true"
-              >
+              <output key={guideStep} className="expression-feedback" aria-live="polite" aria-atomic="true">
                 <strong>{experienceGuide}</strong>
               </output>
             ) : null}
@@ -469,605 +238,16 @@ export default function Home() {
           >
             <span className="action-icon" aria-hidden="true" />
             <span>
-              <strong>
-                {isRequesting
-                  ? 'CONNECTING…'
-                  : isActive
-                    ? 'END SESSION'
-                    : error
-                      ? 'TRY AGAIN'
-                      : 'OPEN CAMERA'}
-              </strong>
-              <small>
-                {isActive ? 'STOP VIDEO STREAM' : coverWarmupCopy}
-              </small>
+              <strong>{isRequesting ? 'CONNECTING…' : isActive ? 'END SESSION' : error ? 'TRY AGAIN' : 'OPEN CAMERA'}</strong>
+              <small>{isActive ? 'STOP VIDEO STREAM' : coverWarmupCopy}</small>
             </span>
             {!isActive && faceLoadStage !== 'error' ? (
-              <i className="model-load-bar" aria-hidden="true">
-                <span style={{ width: `${faceLoadProgress * 100}%` }} />
-              </i>
+              <i className="model-load-bar" aria-hidden="true"><span style={{ width: `${faceLoadProgress * 100}%` }} /></i>
             ) : null}
           </button>
-          <p>ON-DEVICE FACE + HAND TRACKING · NO VIDEO UPLOAD</p>
+          <p>ON-DEVICE FACE TRACKING · NO VIDEO UPLOAD</p>
         </div>
       </section>
-
-      <aside
-        className={`debug-panel ${debugOpen ? 'is-open' : ''}`}
-        aria-hidden={!debugOpen}
-      >
-        <div className="debug-heading">
-          <div>
-            <span>DEVELOPER VIEW</span>
-            <h2>调试面板</h2>
-          </div>
-          <span className="debug-badge">SPRING STORY</span>
-        </div>
-        <div className="debug-section">
-          <p className="debug-label">管线状态</p>
-          <dl>
-            {pipelineItems.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd className={item.active ? 'value-active' : ''}>
-                  {item.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <div className="debug-section metrics">
-          <p className="debug-label">视频信号</p>
-          <div>
-            <span>
-              <strong>{videoSize?.width ?? '--'}</strong> 宽度
-            </span>
-            <span>
-              <strong>{videoSize?.height ?? '--'}</strong> 高度
-            </span>
-            <span className="orientation-value">
-              <strong>
-                <i className="portrait-word">竖屏</i>
-                <i className="landscape-word">横屏</i>
-              </strong>{' '}
-              布局
-            </span>
-          </div>
-        </div>
-        <div className="debug-section expression-section">
-          <p className="debug-label">BLENDSHAPE 原始系数</p>
-          {(
-            [
-              ['smileLeft', 'Smile L', faceMetrics.expressions.smileLeft],
-              ['smileRight', 'Smile R', faceMetrics.expressions.smileRight],
-              ['jawOpen', 'Jaw Open', faceMetrics.expressions.jawOpen],
-              [
-                'cheekSquintLeft',
-                'Cheek L',
-                faceMetrics.expressions.cheekSquintLeft,
-              ],
-              [
-                'cheekSquintRight',
-                'Cheek R',
-                faceMetrics.expressions.cheekSquintRight,
-              ],
-              [
-                'mouthDimpleLeft',
-                'Dimple L',
-                faceMetrics.expressions.mouthDimpleLeft,
-              ],
-              [
-                'mouthDimpleRight',
-                'Dimple R',
-                faceMetrics.expressions.mouthDimpleRight,
-              ],
-            ] as const
-          ).map(([key, label, value]) => (
-            <div className="expression-row" key={key}>
-              <div>
-                <span>{label}</span>
-                <strong>{value.toFixed(3)}</strong>
-              </div>
-              <span className="expression-track" aria-hidden="true">
-                <span style={{ width: `${Math.min(100, value * 100)}%` }} />
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="debug-section signal-section">
-          <div className="section-title-row">
-            <p className="debug-label">标准化信号</p>
-            <span
-              className={`quality-chip ${faceMetrics.signal.accepted ? 'accepted' : ''}`}
-            >
-              质量 {faceMetrics.signal.quality.toFixed(2)}
-            </span>
-          </div>
-          <div className="normalized-grid">
-            <div>
-              <span>normalizedSmile</span>
-              <strong>{faceMetrics.signal.normalized.smile.toFixed(3)}</strong>
-            </div>
-            <div>
-              <span>normalizedJawOpen</span>
-              <strong>
-                {faceMetrics.signal.normalized.jawOpen.toFixed(3)}
-              </strong>
-            </div>
-          </div>
-          <dl className="signal-details">
-            <div>
-              <dt>平滑 Smile</dt>
-              <dd>{faceMetrics.signal.smoothed.smile.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>平滑 Jaw</dt>
-              <dd>{faceMetrics.signal.smoothed.jawOpen.toFixed(3)}</dd>
-            </div>
-          </dl>
-          <p className="rain-help">
-            Smile 融合嘴角上扬、脸颊抬起与酒窝信号，使用统一范围直接归一化
-          </p>
-        </div>
-        <div className="debug-section state-machine-section">
-          <div className="section-title-row">
-            <p className="debug-label">互动状态机</p>
-            <div className="machine-badges">
-              <span
-                className={`input-mode-chip ${simulationMode === 'live' ? 'live' : 'simulation'}`}
-              >
-                {simulationMode === 'live' ? 'LIVE INPUT' : 'SIMULATION'}
-              </span>
-              <span className={`machine-state state-${interactionState}`}>
-                {interactionStateCopy[interactionState].label}
-              </span>
-            </div>
-          </div>
-          <div className="machine-inputs">
-            <span>
-              <small>Smile</small>
-              <strong>{effectiveInput.smile.toFixed(2)}</strong>
-            </span>
-            <span>
-              <small>Jaw</small>
-              <strong>{effectiveInput.jawOpen.toFixed(2)}</strong>
-            </span>
-            <span>
-              <small>Input</small>
-              <strong>{effectiveInput.valid ? 'VALID' : 'HOLD'}</strong>
-            </span>
-            <span>
-              <small>Energy</small>
-              <strong>
-                {interactionDiagnostics.expressionEnergy.toFixed(2)}
-              </strong>
-            </span>
-          </div>
-          <div className="laugh-diagnostics">
-            <div>
-              <span>微笑稳定确认</span>
-              <strong>
-                {Math.round(
-                  interactionDiagnostics.smileCandidateProgress * 100,
-                )}
-                %
-              </strong>
-            </div>
-            <span className="diagnostic-track smile" aria-hidden="true">
-              <span
-                style={{
-                  width: `${interactionDiagnostics.smileCandidateProgress * 100}%`,
-                }}
-              />
-            </span>
-            <div>
-              <span>大笑信号匹配</span>
-              <strong>
-                {Math.round(interactionDiagnostics.laughSignalScore * 100)}%
-              </strong>
-            </div>
-            <span className="diagnostic-track" aria-hidden="true">
-              <span
-                style={{
-                  width: `${interactionDiagnostics.laughSignalScore * 100}%`,
-                }}
-              />
-            </span>
-            <div>
-              <span>持续确认</span>
-              <strong>
-                {Math.round(
-                  interactionDiagnostics.laughCandidateProgress * 100,
-                )}
-                %
-              </strong>
-            </div>
-            <span className="diagnostic-track candidate" aria-hidden="true">
-              <span
-                style={{
-                  width: `${interactionDiagnostics.laughCandidateProgress * 100}%`,
-                }}
-              />
-            </span>
-            <p
-              className={
-                interactionDiagnostics.laughPath ? 'candidate-active' : ''
-              }
-            >
-              {laughBlocker}
-            </p>
-          </div>
-          <div className="threshold-summary">
-            <span>
-              微笑进入 ≥ {DEFAULT_STATE_MACHINE_SETTINGS.smileEnter.toFixed(2)}
-            </span>
-            <span>
-              微笑退出 ≤ {DEFAULT_STATE_MACHINE_SETTINGS.smileExit.toFixed(2)}
-            </span>
-            <span>
-              均衡：S ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughSmileEnter.toFixed(2)} + J ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughJawEnter.toFixed(2)}
-            </span>
-            <span>
-              张嘴主导：J ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughStrongJawEnter.toFixed(2)} +
-              S ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughMediumSmileEnter.toFixed(2)}
-            </span>
-            <span>
-              笑容主导：S ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughStrongSmileEnter.toFixed(2)}{' '}
-              + J ≥{' '}
-              {DEFAULT_STATE_MACHINE_SETTINGS.laughMediumJawEnter.toFixed(2)}
-            </span>
-            <span>冷却 {DEFAULT_STATE_MACHINE_SETTINGS.cooldownMs} ms</span>
-          </div>
-        </div>
-        <div className="debug-section rain-debug-section">
-          <div className="section-title-row">
-            <p className="debug-label">PIXEL RAIN · 微笑</p>
-            <span className={`rain-engine-state ${effectsStatus}`}>
-              {effectsStatus.toUpperCase()}
-            </span>
-          </div>
-          <div className="rain-metrics">
-            <span>
-              <small>强度</small>
-              <strong>
-                {Math.round(effectsMetrics.bloom.intensity * 100)}%
-              </strong>
-            </span>
-            <span>
-              <small>表情能量</small>
-              <strong>
-                {Math.round(interactionDiagnostics.expressionEnergy * 100)}%
-              </strong>
-            </span>
-            <span>
-              <small>活跃 / 上限</small>
-              <strong>
-                {effectsMetrics.bloom.activeElements} /{' '}
-                {effectsMetrics.bloom.capacity}
-              </strong>
-            </span>
-            <span>
-              <small>渲染 FPS</small>
-              <strong>
-                {effectsMetrics.fps ? effectsMetrics.fps.toFixed(0) : '--'}
-              </strong>
-            </span>
-            <span>
-              <small>演出阶段</small>
-              <strong>{effectsMetrics.bloom.stage.toUpperCase()}</strong>
-            </span>
-            <span>
-              <small>消散余韵</small>
-              <strong>
-                {effectsMetrics.bloom.dissolving ? 'ACTIVE' : 'IDLE'}
-              </strong>
-            </span>
-            <span>
-              <small>画质等级</small>
-              <strong>{effectsMetrics.quality.toUpperCase()}</strong>
-            </span>
-          </div>
-          <span className="rain-intensity-track" aria-hidden="true">
-            <span
-              style={{ width: `${effectsMetrics.bloom.intensity * 100}%` }}
-            />
-          </span>
-          <p className="rain-help">
-            高饱和彩色色块由稀到密下落 → 大笑前减速淡出 → 顶部像素烟花接管 · 按
-            S 测试
-          </p>
-          {effectsError ? <p className="rain-error">{effectsError}</p> : null}
-        </div>
-        <div className="debug-section firework-debug-section">
-          <div className="section-title-row">
-            <p className="debug-label">PIXEL FIREWORK · 大笑</p>
-            <span className="firework-trigger-chip">ON ENTER · LAUGH</span>
-          </div>
-          <div className="rain-metrics">
-            <span>
-              <small>活跃 / 上限</small>
-              <strong>
-                {effectsMetrics.fireworks.activeParticles} /{' '}
-                {effectsMetrics.fireworks.capacity || '--'}
-              </strong>
-            </span>
-            <span>
-              <small>触发次数</small>
-              <strong>{effectsMetrics.fireworks.triggerCount}</strong>
-            </span>
-            <span>
-              <small>演出阶段</small>
-              <strong>{effectsMetrics.fireworks.phase.toUpperCase()}</strong>
-            </span>
-            <span>
-              <small>头部碰撞</small>
-              <strong>{effectsMetrics.fireworks.collisions}</strong>
-            </span>
-            <span>
-              <small>穿透修正</small>
-              <strong>{effectsMetrics.fireworks.penetrationCorrections}</strong>
-            </span>
-            <span>
-              <small>检测 / 帧</small>
-              <strong>{effectsMetrics.fireworks.collisionChecks}</strong>
-            </span>
-            <span>
-              <small>碰撞耗时</small>
-              <strong>
-                {effectsMetrics.fireworks.collisionMs.toFixed(2)} ms
-              </strong>
-            </span>
-          </div>
-          <p className="rain-help">
-            顶部大型笑脸焦点 → 乐符、星星、花朵错时爆发 → 霓虹纸屑余韵 ·
-            头部可撞散 · 按 L 测试
-          </p>
-        </div>
-        <div className="debug-section collider-debug-section">
-          <div className="section-title-row">
-            <p className="debug-label">头部碰撞体</p>
-            <span
-              className={`quality-chip ${faceMetrics.headCollider.valid ? 'accepted' : ''}`}
-            >
-              {faceMetrics.headCollider.valid ? 'TRACKING' : 'WAITING'}
-            </span>
-          </div>
-          <dl className="signal-details">
-            <div>
-              <dt>屏幕中心</dt>
-              <dd>
-                {faceMetrics.headCollider.valid
-                  ? `${faceMetrics.headCollider.centerX.toFixed(0)}, ${faceMetrics.headCollider.centerY.toFixed(0)}`
-                  : '--'}
-              </dd>
-            </div>
-            <div>
-              <dt>椭圆半径</dt>
-              <dd>
-                {faceMetrics.headCollider.valid
-                  ? `${faceMetrics.headCollider.radiusX.toFixed(0)} × ${faceMetrics.headCollider.radiusY.toFixed(0)}`
-                  : '--'}
-              </dd>
-            </div>
-            <div>
-              <dt>头部旋转</dt>
-              <dd>
-                {faceMetrics.headCollider.valid
-                  ? `${((faceMetrics.headCollider.rotation * 180) / Math.PI).toFixed(1)}°`
-                  : '--'}
-              </dd>
-            </div>
-          </dl>
-          <p className="rain-help">
-            镜像坐标 · Cover 裁切补偿 · 95 ms 防抖平滑
-          </p>
-        </div>
-        <div className="debug-section signal-section">
-          <div className="section-title-row">
-            <p className="debug-label">HAND ACTIONS</p>
-            <span className="quality-chip accepted">
-              {handActions.status.toUpperCase()}
-            </span>
-          </div>
-          <dl className="signal-details">
-            <div>
-              <dt>检测手数</dt>
-              <dd>{handActions.metrics.hands}</dd>
-            </div>
-            <div>
-              <dt>比心 / 候选</dt>
-              <dd>
-                {handActions.metrics.heartScore.toFixed(2)} /{' '}
-                {Math.round(handActions.metrics.heartProgress * 100)}%
-              </dd>
-            </div>
-            <div>
-              <dt>手部推理</dt>
-              <dd>{handActions.metrics.inferenceMs?.toFixed(1) ?? '--'} ms</dd>
-            </div>
-            <div>
-              <dt>爱心阶段</dt>
-              <dd>{effectsMetrics.heart.phase.toUpperCase()}</dd>
-            </div>
-          </dl>
-        </div>
-        <div className="debug-section simulation-section">
-          <p className="debug-label">键盘模拟</p>
-          <div className="simulation-buttons">
-            {(['live', 'neutral', 'smile', 'laugh'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                className={simulationMode === mode ? 'selected' : ''}
-                onClick={() => setSimulationMode(mode)}
-              >
-                <kbd>
-                  {mode === 'live' ? 'Esc' : mode.charAt(0).toUpperCase()}
-                </kbd>
-                {simulationCopy[mode]}
-              </button>
-            ))}
-          </div>
-          <p className="simulation-help">
-            S 微笑 · L 大笑 · H 比心 · N 回落 · Esc 恢复摄像头
-          </p>
-          <div className="simulation-buttons">
-            <button
-              type="button"
-              onClick={() => handActions.triggerTest('heart')}
-            >
-              <kbd>H</kbd>比心
-            </button>
-          </div>
-        </div>
-        <div className="debug-section transition-section">
-          <div className="section-title-row">
-            <p className="debug-label">状态切换记录</p>
-            <button
-              type="button"
-              onClick={clearTransitions}
-              disabled={transitions.length === 0}
-            >
-              清空
-            </button>
-          </div>
-          {transitions.length === 0 ? (
-            <p className="empty-transitions">暂无切换，按 S 或 L 开始模拟</p>
-          ) : (
-            <ol className="transition-list">
-              {transitions.map((transition) => (
-                <li key={transition.id}>
-                  <span>
-                    {new Date(transition.recordedAt).toLocaleTimeString(
-                      'zh-CN',
-                      { hour12: false },
-                    )}
-                  </span>
-                  <strong>
-                    {transition.from} → {transition.to}
-                  </strong>
-                  <small>{transition.reason}</small>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-        <div className="debug-section tuning-section">
-          <p className="debug-label">信号调参</p>
-          <label>
-            <span>
-              质量门槛{' '}
-              <strong>
-                {expressionSettings.confidenceThreshold.toFixed(2)}
-              </strong>
-            </span>
-            <input
-              type="range"
-              min="0.4"
-              max="0.9"
-              step="0.01"
-              value={expressionSettings.confidenceThreshold}
-              onChange={(event) =>
-                updateExpressionSetting(
-                  'confidenceThreshold',
-                  Number(event.target.value),
-                )
-              }
-            />
-          </label>
-          <label>
-            <span>
-              平滑时间 <strong>{expressionSettings.smoothingTimeMs} ms</strong>
-            </span>
-            <input
-              type="range"
-              min="60"
-              max="400"
-              step="10"
-              value={expressionSettings.smoothingTimeMs}
-              onChange={(event) =>
-                updateExpressionSetting(
-                  'smoothingTimeMs',
-                  Number(event.target.value),
-                )
-              }
-            />
-          </label>
-          <label>
-            <span>
-              Smile 灵敏度{' '}
-              <strong>{expressionSettings.smileRange.toFixed(2)}</strong>
-            </span>
-            <input
-              type="range"
-              min="0.2"
-              max="0.8"
-              step="0.01"
-              value={expressionSettings.smileRange}
-              onChange={(event) =>
-                updateExpressionSetting(
-                  'smileRange',
-                  Number(event.target.value),
-                )
-              }
-            />
-          </label>
-          <label>
-            <span>
-              Jaw 灵敏度{' '}
-              <strong>{expressionSettings.jawRange.toFixed(2)}</strong>
-            </span>
-            <input
-              type="range"
-              min="0.2"
-              max="0.8"
-              step="0.01"
-              value={expressionSettings.jawRange}
-              onChange={(event) =>
-                updateExpressionSetting('jawRange', Number(event.target.value))
-              }
-            />
-          </label>
-        </div>
-        <div className="debug-section metrics inference-metrics">
-          <p className="debug-label">模型性能</p>
-          <div>
-            <span>
-              <strong>{faceMetrics.landmarkCount || '--'}</strong> 关键点
-            </span>
-            <span>
-              <strong>{faceMetrics.inferenceMs?.toFixed(1) ?? '--'}</strong> ms
-            </span>
-            <span>
-              <strong>
-                {faceMetrics.inferenceFps
-                  ? faceMetrics.inferenceFps.toFixed(1)
-                  : '--'}
-              </strong>{' '}
-              FPS
-            </span>
-          </div>
-        </div>
-        <div className="debug-footer">
-          <span className={`status-dot ${status}`} aria-hidden="true" />
-          {error
-            ? error.title
-            : faceError
-              ? '人脸模型异常'
-              : effectsError
-                ? '粒子引擎异常'
-                : faceMetrics.hasFace
-                  ? '已检测到单张人脸'
-                  : isActive
-                    ? '等待检测到人脸'
-                    : '页面层运行正常'}
-        </div>
-      </aside>
     </main>
   );
 }

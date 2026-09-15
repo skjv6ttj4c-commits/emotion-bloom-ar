@@ -16,12 +16,10 @@ import {
   EMPTY_EXPRESSION_SIGNAL,
   ExpressionSignalProcessor,
   type ExpressionScores,
-  type ExpressionSettings,
 } from './expression-signal';
 import {
   createHeadCollider,
   EMPTY_HEAD_COLLIDER,
-  projectLandmarkToCover,
   type HeadCollider,
 } from './head-collider';
 import {
@@ -31,8 +29,8 @@ import {
   type FaceLoadStage,
 } from './face-runtime';
 
-const INFERENCE_INTERVAL_MS = 1000 / 15;
-const MAX_DEVICE_PIXEL_RATIO = 2;
+const DESKTOP_INFERENCE_INTERVAL_MS = 1000 / 15;
+const MOBILE_INFERENCE_INTERVAL_MS = 1000 / 12;
 const FACE_CHANGE_RESET_MS = 1400;
 
 function describeFaceError(error: unknown) {
@@ -143,101 +141,14 @@ function readMetrics(
   };
 }
 
-function fitCanvasToDisplay(canvas: HTMLCanvasElement) {
-  const width = canvas.clientWidth;
-  const height = canvas.clientHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
-  const pixelWidth = Math.round(width * dpr);
-  const pixelHeight = Math.round(height * dpr);
-
-  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight;
-  }
-
-  const context = canvas.getContext('2d');
-  context?.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { context, width, height };
-}
-
-function drawFace(
-  canvas: HTMLCanvasElement,
-  video: HTMLVideoElement,
-  landmarker: typeof FaceLandmarker,
-  result: FaceLandmarkerResult,
-  headCollider: HeadCollider,
-) {
-  const { context, width, height } = fitCanvasToDisplay(canvas);
-  if (!context) return;
-  context.clearRect(0, 0, width, height);
-
-  const landmarks = result.faceLandmarks[0];
-  if (!landmarks || video.videoWidth === 0 || video.videoHeight === 0) return;
-  const videoSize = { width: video.videoWidth, height: video.videoHeight };
-  const viewportSize = { width, height };
-  const projected = landmarks.map((landmark) =>
-    projectLandmarkToCover(landmark, videoSize, viewportSize),
-  );
-
-  context.save();
-  context.fillStyle = 'rgba(118, 247, 214, 0.72)';
-  for (const point of projected) {
-    context.beginPath();
-    context.arc(point.x, point.y, 1.15, 0, Math.PI * 2);
-    context.fill();
-  }
-
-  context.beginPath();
-  for (const connection of landmarker.FACE_LANDMARKS_FACE_OVAL) {
-    const from = projected[connection.start];
-    const to = projected[connection.end];
-    if (!from || !to) continue;
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
-  }
-  context.strokeStyle = 'rgba(184, 170, 255, 0.96)';
-  context.lineWidth = 2;
-  context.shadowColor = 'rgba(156, 140, 255, 0.7)';
-  context.shadowBlur = 10;
-  context.stroke();
-
-  if (headCollider.valid) {
-    context.beginPath();
-    context.ellipse(
-      headCollider.centerX,
-      headCollider.centerY,
-      headCollider.radiusX,
-      headCollider.radiusY,
-      headCollider.rotation,
-      0,
-      Math.PI * 2,
-    );
-    context.setLineDash([8, 6]);
-    context.strokeStyle = 'rgba(112, 207, 255, 0.98)';
-    context.lineWidth = 2.5;
-    context.shadowColor = 'rgba(112, 207, 255, 0.85)';
-    context.shadowBlur = 14;
-    context.stroke();
-    context.setLineDash([]);
-    context.fillStyle = 'rgba(112, 207, 255, 0.9)';
-    context.font = '10px monospace';
-    context.fillText(
-      'HEAD COLLIDER',
-      headCollider.centerX - headCollider.radiusX,
-      headCollider.centerY - headCollider.radiusY - 9,
-    );
-  }
-  context.restore();
-}
-
 export function useFaceLandmarker(
   videoRef: RefObject<HTMLVideoElement | null>,
   cameraActive: boolean,
-  settings: ExpressionSettings = DEFAULT_EXPRESSION_SETTINGS,
-  drawDebugOverlay = false,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [processor] = useState(() => new ExpressionSignalProcessor(settings));
+  const [processor] = useState(
+    () => new ExpressionSignalProcessor(DEFAULT_EXPRESSION_SETTINGS),
+  );
   const [status, setStatus] = useState<FaceStatus>('idle');
   const [metrics, setMetrics] = useState<FaceMetrics>(emptyMetrics);
   const [error, setError] = useState<string | null>(null);
@@ -250,10 +161,6 @@ export function useFaceLandmarker(
   const [modelCacheHit, setModelCacheHit] = useState(
     () => getFaceLoadSnapshot().cacheHit,
   );
-
-  useEffect(() => {
-    processor.setSettings(settings);
-  }, [processor, settings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -304,13 +211,11 @@ export function useFaceLandmarker(
     let lastVideoTime = -1;
     let lastHeadCollider = EMPTY_HEAD_COLLIDER;
     let faceMissingSince = 0;
-
-    if (!drawDebugOverlay) {
-      const canvas = canvasRef.current;
-      const context = canvas?.getContext('2d');
-      if (canvas && context)
-        context.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    const baseInferenceInterval =
+      window.innerWidth <= 720
+        ? MOBILE_INFERENCE_INTERVAL_MS
+        : DESKTOP_INFERENCE_INTERVAL_MS;
+    let inferenceInterval = baseInferenceInterval;
 
     async function initialize() {
       setStatus(getFaceLoadSnapshot().stage === 'ready' ? 'ready' : 'loading');
@@ -343,14 +248,19 @@ export function useFaceLandmarker(
         canvas &&
         faceLandmarker &&
         faceLandmarkerClass &&
+        !document.hidden &&
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         video.currentTime !== lastVideoTime &&
-        now - lastInferenceAt >= INFERENCE_INTERVAL_MS
+        now - lastInferenceAt >= inferenceInterval
       ) {
         const startedAt = performance.now();
         try {
           const result = faceLandmarker.detectForVideo(video, now);
           const completedAt = performance.now();
+          inferenceInterval = Math.min(
+            160,
+            Math.max(baseInferenceInterval, (completedAt - startedAt) * 1.25),
+          );
           const elapsedSinceLastRun = lastInferenceAt
             ? now - lastInferenceAt
             : 0;
@@ -366,14 +276,11 @@ export function useFaceLandmarker(
           } else {
             faceMissingSince = 0;
           }
-          const canvasSize = drawDebugOverlay
-            ? fitCanvasToDisplay(canvas)
-            : { width: canvas.clientWidth, height: canvas.clientHeight };
           const headCollider = createHeadCollider(
             result.faceLandmarks[0] ?? [],
             faceLandmarkerClass.FACE_LANDMARKS_FACE_OVAL,
             { width: video.videoWidth, height: video.videoHeight },
-            { width: canvasSize.width, height: canvasSize.height },
+            { width: canvas.clientWidth, height: canvas.clientHeight },
             now,
             lastHeadCollider,
           );
@@ -386,15 +293,6 @@ export function useFaceLandmarker(
             headCollider,
           );
           lastHeadCollider = nextMetrics.headCollider;
-          if (drawDebugOverlay) {
-            drawFace(
-              canvas,
-              video,
-              faceLandmarkerClass,
-              result,
-              nextMetrics.headCollider,
-            );
-          }
           setMetrics(nextMetrics);
           setStatus('running');
         } catch (caughtError) {
@@ -413,7 +311,7 @@ export function useFaceLandmarker(
       cancelled = true;
       cancelAnimationFrame(animationFrame);
     };
-  }, [cameraActive, drawDebugOverlay, processor, videoRef]);
+  }, [cameraActive, processor, videoRef]);
 
   return {
     canvasRef,

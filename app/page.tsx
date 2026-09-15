@@ -52,8 +52,6 @@ export default function Home() {
   } = useFaceLandmarker(videoRef, isActive);
   const modelReady = faceLoadStage === 'ready';
   const modelFailed = faceLoadStage === 'error';
-  const modelPreparing = !modelReady && !modelFailed;
-  const modelProgressPercent = Math.round(faceLoadProgress * 100);
   const {
     state: interactionState,
     transitions,
@@ -63,14 +61,26 @@ export default function Home() {
     jawOpen: faceMetrics.signal.normalized.jawOpen,
     valid: faceMetrics.hasFace && faceMetrics.signal.accepted,
   });
-  const { hostRef: effectsHostRef, metrics: effectsMetrics } = useVisualEffects(
+  const {
+    hostRef: effectsHostRef,
+    status: effectsStatus,
+    metrics: effectsMetrics,
+  } = useVisualEffects(
     interactionState,
     interactionDiagnostics.expressionEnergy,
     transitions[0],
     faceMetrics.headCollider,
     faceLoadStage === 'ready',
   );
-
+  const effectsReady = effectsStatus === 'ready';
+  const setupFailed = modelFailed || effectsStatus === 'error';
+  const experienceReady = modelReady && effectsReady;
+  const setupPreparing = !experienceReady && !setupFailed;
+  const setupProgressPercent = modelReady
+    ? effectsReady
+      ? 100
+      : 94
+    : Math.min(90, Math.round(faceLoadProgress * 90));
   const recognizedGuide = ['laugh-entering', 'laughing', 'celebrating'].includes(
     interactionState,
   )
@@ -100,12 +110,12 @@ export default function Home() {
               : '';
   const guideTone = faceStatus === 'loading' ? 'preparing' : interactionState;
   const coverWarmupCopy =
-    modelReady
+    experienceReady
       ? modelCacheHit
         ? 'MODEL READY · CACHED ON THIS DEVICE'
         : 'MODEL READY · TAP TO JOIN'
-      : modelFailed
-        ? 'FACE MODEL FAILED · TAP TO RETRY'
+      : setupFailed
+        ? 'SETUP FAILED · TAP TO RETRY'
         : 'CAMERA UNLOCKS AS SOON AS FACE TRACKING IS READY';
   const smileEffectVisible =
     ['smile-entering', 'smiling'].includes(interactionState) &&
@@ -132,18 +142,18 @@ export default function Home() {
   }, [effectsMetrics.fireworks.triggerCount, guideStep, isActive, smileEffectVisible]);
 
   function handleStartCamera() {
-    if (modelFailed) {
+    if (setupFailed) {
       window.location.reload();
       return;
     }
-    if (!modelReady) return;
+    if (!experienceReady) return;
     setGuideStep(0);
     laughTriggerBaseline.current = 0;
     void startCamera();
   }
 
   return (
-    <main className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''}`}>
+    <main className={`app-shell camera-${status} interaction-${interactionState} ${faceMetrics.hasFace ? 'has-face' : ''} ${setupPreparing ? 'setup-preparing' : 'setup-ready'}`}>
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
 
@@ -186,8 +196,8 @@ export default function Home() {
             <p className="eyebrow">FACE-LED LIVE EFFECTS / 001</p>
             <h1 id="stage-title">WELCOME BACK<br />TO THE LIVE ROOM.</h1>
             <p className="stage-description">
-              {modelPreparing
-                ? 'Preparing face effects first, so your smile responds instantly.'
+              {setupPreparing
+                ? 'Preparing your live effects now, so they respond instantly inside.'
                 : 'Turn on your camera. Your expressions run the show.'}
             </p>
           </div>
@@ -243,20 +253,20 @@ export default function Home() {
 
         <div className="control-dock">
           <button
-            className={`primary-action ${isActive ? 'stop-action' : ''} ${modelPreparing ? 'is-preparing' : ''}`}
+            className={`primary-action ${isActive ? 'stop-action' : ''} ${setupPreparing ? 'is-preparing' : ''}`}
             type="button"
             aria-label={
               isActive
                 ? 'Turn off camera'
-                : modelPreparing
-                  ? `Preparing face tracking, ${modelProgressPercent} percent`
-                  : modelFailed
-                    ? 'Retry face model'
+                : setupPreparing
+                  ? `Preparing live effects, ${setupProgressPercent} percent`
+                  : setupFailed
+                    ? 'Retry setup'
                     : 'Open camera'
             }
-            aria-busy={modelPreparing || isRequesting}
+            aria-busy={setupPreparing || isRequesting}
             onClick={isActive ? stopCamera : handleStartCamera}
-            disabled={isRequesting || modelPreparing}
+            disabled={isRequesting || setupPreparing}
           >
             <span className="action-icon" aria-hidden="true" />
             <span>
@@ -265,16 +275,16 @@ export default function Home() {
                   ? 'CONNECTING…'
                   : isActive
                     ? 'END SESSION'
-                    : modelPreparing
-                      ? `PREPARING · ${modelProgressPercent}%`
-                      : modelFailed || error
+                    : setupPreparing
+                      ? `GETTING READY · ${setupProgressPercent}%`
+                      : setupFailed || error
                         ? 'TRY AGAIN'
                         : 'OPEN CAMERA'}
               </strong>
               <small>{isActive ? 'STOP VIDEO STREAM' : coverWarmupCopy}</small>
             </span>
-            {!isActive && !modelFailed ? (
-              <i className="model-load-bar" aria-hidden="true"><span style={{ width: `${faceLoadProgress * 100}%` }} /></i>
+            {!isActive && !setupFailed ? (
+              <i className="model-load-bar" aria-hidden="true"><span style={{ width: `${setupProgressPercent}%` }} /></i>
             ) : null}
           </button>
           <p>ON-DEVICE FACE TRACKING · NO VIDEO UPLOAD</p>

@@ -1441,6 +1441,7 @@ body {
     font-size: 16px;
   }
 
+
   .control-dock {
     bottom: max(30px, env(safe-area-inset-bottom));
     left: 20px;
@@ -1576,7 +1577,7 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
-  height: 5px;
+  height: 9px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.16);
 }
@@ -1590,7 +1591,7 @@ body {
     var(--pixel-pink, #ff5d9e),
     var(--pixel-yellow)
   );
-  transition: width 280ms ease-out;
+  transition: width 220ms ease-out;
 }
 
 .camera-idle .primary-action strong,
@@ -1697,14 +1698,6 @@ body {
 
 .expression-strip li:nth-child(2) button {
   background: #dbe5ff;
-}
-
-.expression-strip li:nth-child(3) button {
-  background: #fff0a8;
-}
-
-.expression-strip li:nth-child(4) button {
-  background: #ffd6e7;
 }
 
 .expression-strip button.is-selected {

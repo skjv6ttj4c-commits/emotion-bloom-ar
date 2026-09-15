@@ -250,22 +250,42 @@ export function preloadFaceRuntime(): Promise<PreparedFaceRuntime> {
     const modelBuffer = await modelBufferPromise;
     publish({ progress: 0.72, stage: 'preparing-engine' });
 
-    const instancePromise = vision.FaceLandmarker.createFromOptions(fileset, {
-      baseOptions: {
-        modelAssetBuffer: new Uint8Array(modelBuffer),
-        delegate: 'CPU',
-      },
-      runningMode: 'VIDEO',
-      numFaces: 1,
-      outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: false,
-      minFaceDetectionConfidence: 0.5,
-      minFacePresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
-
     publish({ progress: 0.86, stage: 'initializing' });
-    const instance = await instancePromise;
+    const baseOptions = {
+      modelAssetBuffer: new Uint8Array(modelBuffer),
+      delegate:
+        window.innerWidth <= 720 || (navigator.hardwareConcurrency ?? 8) <= 4
+          ? ('GPU' as const)
+          : ('CPU' as const),
+    };
+    let instance: FaceLandmarker;
+    try {
+      instance = await vision.FaceLandmarker.createFromOptions(fileset, {
+        baseOptions,
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: false,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+    } catch (error) {
+      if (baseOptions.delegate !== 'GPU') throw error;
+      // Some older mobile WebViews expose WebGL but cannot initialize the
+      // MediaPipe GPU delegate. Retry once on CPU instead of leaving entry
+      // stuck at the initialization stage.
+      instance = await vision.FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { ...baseOptions, delegate: 'CPU' },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: false,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      });
+    }
     preparedRuntime = { instance, runtime: vision.FaceLandmarker };
     publish({ progress: 1, stage: 'ready' });
     return preparedRuntime;

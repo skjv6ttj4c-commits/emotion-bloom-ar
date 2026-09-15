@@ -20,23 +20,12 @@ export type ExpressionSettings = {
   jawRange: number;
 };
 
-export type CalibrationStatus = 'waiting' | 'neutral' | 'ready';
-
 export type ExpressionSignal = {
   accepted: boolean;
   quality: number;
   raw: { smile: number; jawOpen: number };
   smoothed: { smile: number; jawOpen: number };
   normalized: { smile: number; jawOpen: number };
-  calibration: {
-    status: CalibrationStatus;
-    progress: number;
-    sampleCount: number;
-    neutralSampleAccepted: boolean;
-    baseline: { smile: number; jawOpen: number };
-    personalPeak: { smile: number; jawOpen: number };
-    effectiveRange: { smile: number; jawOpen: number };
-  };
 };
 
 export const DEFAULT_EXPRESSION_SETTINGS: ExpressionSettings = {
@@ -46,21 +35,11 @@ export const DEFAULT_EXPRESSION_SETTINGS: ExpressionSettings = {
   jawRange: 0.42,
 };
 
-const NEUTRAL_DURATION_MS = 700;
-const MIN_NEUTRAL_SAMPLES = 7;
-const SMILE_DEAD_ZONE = 0.012;
-const JAW_DEAD_ZONE = 0.012;
-const MIN_SMILE_RANGE = 0.055;
-const MIN_JAW_RANGE = 0.14;
+const STANDARD_SMILE_FLOOR = 0.06;
+const STANDARD_JAW_FLOOR = 0.025;
 
 const clamp = (value: number, minimum = 0, maximum = 1) =>
   Math.min(maximum, Math.max(minimum, value));
-
-function lowerQuartile(values: number[]) {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((left, right) => left - right);
-  return sorted[Math.floor((sorted.length - 1) * 0.25)];
-}
 
 function smileEvidence(expressions: ExpressionScores) {
   const mouthCornerLift = (expressions.smileLeft + expressions.smileRight) / 2;
@@ -104,16 +83,6 @@ export class ExpressionSignalProcessor {
   private lastAcceptedAt: number | null = null;
   private smoothedSmile = 0;
   private smoothedJaw = 0;
-  private calibrationElapsedMs = 0;
-  private calibrationSamples = 0;
-  private calibrationSmileSamples: number[] = [];
-  private calibrationJawSamples: number[] = [];
-  private baselineSmile = 0;
-  private baselineJaw = 0;
-  private peakSmile = 0;
-  private peakJaw = 0;
-  private neutralSampleAccepted = false;
-  private calibrationStatus: CalibrationStatus = 'waiting';
 
   constructor(settings: ExpressionSettings = DEFAULT_EXPRESSION_SETTINGS) {
     this.settings = settings;
@@ -128,16 +97,6 @@ export class ExpressionSignalProcessor {
     this.lastAcceptedAt = null;
     this.smoothedSmile = 0;
     this.smoothedJaw = 0;
-    this.calibrationElapsedMs = 0;
-    this.calibrationSamples = 0;
-    this.calibrationSmileSamples = [];
-    this.calibrationJawSamples = [];
-    this.baselineSmile = 0;
-    this.baselineJaw = 0;
-    this.peakSmile = 0;
-    this.peakJaw = 0;
-    this.neutralSampleAccepted = false;
-    this.calibrationStatus = 'waiting';
     return this.snapshot(false, 0, 0, 0);
   }
 
@@ -158,8 +117,6 @@ export class ExpressionSignalProcessor {
         : clamp(timestampMs - this.lastAcceptedAt, 0, 120);
     this.lastAcceptedAt = timestampMs;
     this.updateSmoothing(rawSmile, rawJaw, deltaMs);
-    this.updateCalibration(rawSmile, rawJaw, deltaMs);
-    this.updatePersonalPeaks();
     return this.snapshot(true, quality, rawSmile, rawJaw);
   }
 
@@ -176,98 +133,20 @@ export class ExpressionSignalProcessor {
     this.smoothedJaw += (rawJaw - this.smoothedJaw) * alpha;
   }
 
-  private updateCalibration(rawSmile: number, rawJaw: number, deltaMs: number) {
-    if (this.calibrationStatus === 'waiting')
-      this.calibrationStatus = 'neutral';
-
-    if (this.calibrationStatus === 'neutral') {
-      const hasProvisionalBaseline = this.calibrationSamples >= 5;
-      const smileCeiling = hasProvisionalBaseline
-        ? this.baselineSmile + 0.15
-        : 0.42;
-      const jawCeiling = hasProvisionalBaseline
-        ? this.baselineJaw + 0.12
-        : 0.23;
-      this.neutralSampleAccepted =
-        rawSmile <= smileCeiling && rawJaw <= jawCeiling;
-      if (this.neutralSampleAccepted) {
-        this.calibrationElapsedMs += deltaMs;
-        this.calibrationSamples += 1;
-        this.calibrationSmileSamples.push(rawSmile);
-        this.calibrationJawSamples.push(rawJaw);
-        this.baselineSmile = lowerQuartile(this.calibrationSmileSamples);
-        this.baselineJaw = lowerQuartile(this.calibrationJawSamples);
-      }
-      if (
-        this.calibrationElapsedMs >= NEUTRAL_DURATION_MS &&
-        this.calibrationSamples >= MIN_NEUTRAL_SAMPLES
-      ) {
-        this.peakSmile = this.baselineSmile + 0.12;
-        this.peakJaw = this.baselineJaw + 0.22;
-        this.calibrationStatus = 'ready';
-      }
-      return;
-    }
-  }
-
-  private updatePersonalPeaks() {
-    if (this.calibrationStatus !== 'ready') return;
-    if (this.smoothedSmile > this.peakSmile) {
-      this.peakSmile += (this.smoothedSmile - this.peakSmile) * 0.18;
-    }
-    if (this.smoothedJaw > this.peakJaw) {
-      this.peakJaw += (this.smoothedJaw - this.peakJaw) * 0.18;
-    }
-  }
-
-  private getEffectiveRanges() {
-    return {
-      smile: Math.min(
-        this.settings.smileRange,
-        Math.max(
-          MIN_SMILE_RANGE,
-          (this.peakSmile - this.baselineSmile - SMILE_DEAD_ZONE) * 0.9,
-        ),
-      ),
-      jawOpen: Math.min(
-        this.settings.jawRange,
-        Math.max(
-          MIN_JAW_RANGE,
-          (this.peakJaw - this.baselineJaw - JAW_DEAD_ZONE) * 0.9,
-        ),
-      ),
-    };
-  }
-
-  private getCalibrationProgress() {
-    if (this.calibrationStatus === 'ready') return 1;
-    if (this.calibrationStatus === 'waiting') return 0;
-    if (this.calibrationStatus === 'neutral') {
-      return clamp(this.calibrationElapsedMs / NEUTRAL_DURATION_MS);
-    }
-    return 0;
-  }
-
   private snapshot(
     accepted: boolean,
     quality: number,
     rawSmile: number,
     rawJaw: number,
   ): ExpressionSignal {
-    const calibrationReady = this.calibrationStatus === 'ready';
-    const effectiveRange = this.getEffectiveRanges();
-    const normalizedSmile = calibrationReady
-      ? clamp(
-          (this.smoothedSmile - this.baselineSmile - SMILE_DEAD_ZONE) /
-            effectiveRange.smile,
-        )
-      : 0;
-    const normalizedJaw = calibrationReady
-      ? clamp(
-          (this.smoothedJaw - this.baselineJaw - JAW_DEAD_ZONE) /
-            effectiveRange.jawOpen,
-        )
-      : 0;
+    const normalizedSmile = clamp(
+      (this.smoothedSmile - STANDARD_SMILE_FLOOR) /
+        Math.max(0.12, this.settings.smileRange),
+    );
+    const normalizedJaw = clamp(
+      (this.smoothedJaw - STANDARD_JAW_FLOOR) /
+        Math.max(0.16, this.settings.jawRange),
+    );
 
     return {
       accepted,
@@ -275,15 +154,6 @@ export class ExpressionSignalProcessor {
       raw: { smile: rawSmile, jawOpen: rawJaw },
       smoothed: { smile: this.smoothedSmile, jawOpen: this.smoothedJaw },
       normalized: { smile: normalizedSmile, jawOpen: normalizedJaw },
-      calibration: {
-        status: this.calibrationStatus,
-        progress: this.getCalibrationProgress(),
-        sampleCount: this.calibrationSamples,
-        neutralSampleAccepted: this.neutralSampleAccepted,
-        baseline: { smile: this.baselineSmile, jawOpen: this.baselineJaw },
-        personalPeak: { smile: this.peakSmile, jawOpen: this.peakJaw },
-        effectiveRange,
-      },
     };
   }
 }
@@ -294,13 +164,4 @@ export const EMPTY_EXPRESSION_SIGNAL: ExpressionSignal = {
   raw: { smile: 0, jawOpen: 0 },
   smoothed: { smile: 0, jawOpen: 0 },
   normalized: { smile: 0, jawOpen: 0 },
-  calibration: {
-    status: 'waiting',
-    progress: 0,
-    sampleCount: 0,
-    neutralSampleAccepted: false,
-    baseline: { smile: 0, jawOpen: 0 },
-    personalPeak: { smile: 0, jawOpen: 0 },
-    effectiveRange: { smile: MIN_SMILE_RANGE, jawOpen: MIN_JAW_RANGE },
-  },
 };

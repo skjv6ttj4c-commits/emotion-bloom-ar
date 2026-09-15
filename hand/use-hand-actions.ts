@@ -62,6 +62,7 @@ const COOLDOWN_MS: Record<ActionKind, number> = {
 export function useHandActions(
   videoRef: RefObject<HTMLVideoElement | null>,
   enabled: boolean,
+  preload = enabled,
 ) {
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'running' | 'error'
@@ -69,6 +70,11 @@ export function useHandActions(
   const [metrics, setMetrics] = useState<HandActionMetrics>(EMPTY_METRICS);
   const [trigger, setTrigger] = useState<HandActionTrigger | null>(null);
   const counterRef = useRef(0);
+  const enabledRef = useRef(enabled);
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const triggerTest = useCallback((kind: ActionKind) => {
     counterRef.current += 1;
@@ -83,7 +89,7 @@ export function useHandActions(
   }, []);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!preload) {
       return;
     }
 
@@ -188,6 +194,7 @@ export function useHandActions(
       if (
         video &&
         landmarker &&
+        enabledRef.current &&
         !document.hidden &&
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         video.currentTime !== lastVideoTime &&
@@ -225,7 +232,7 @@ export function useHandActions(
             inferenceFps: elapsed > 0 ? 1000 / elapsed : 0,
             heartActive: latched.heart,
           });
-          setStatus('running');
+          if (enabledRef.current) setStatus('running');
         } catch {
           setStatus('error');
           return;
@@ -240,7 +247,7 @@ export function useHandActions(
       cancelAnimationFrame(animationFrame);
       landmarker?.close();
     };
-  }, [enabled, videoRef]);
+  }, [preload, videoRef]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

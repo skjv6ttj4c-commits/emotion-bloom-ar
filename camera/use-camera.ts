@@ -111,8 +111,15 @@ export function useCamera() {
         audio: false,
         video: {
           facingMode: { ideal: 'user' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width:
+            window.innerWidth <= 720 || (navigator.hardwareConcurrency ?? 8) <= 4
+              ? { ideal: 640, max: 720 }
+              : { ideal: 960, max: 1280 },
+          height:
+            window.innerWidth <= 720 || (navigator.hardwareConcurrency ?? 8) <= 4
+              ? { ideal: 480, max: 720 }
+              : { ideal: 720, max: 720 },
+          frameRate: { ideal: 24, max: 30 },
         },
       });
 

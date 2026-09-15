@@ -95,22 +95,17 @@ export default function Home() {
     status: faceStatus,
     metrics: faceMetrics,
     error: faceError,
-    recalibrate,
     loadProgress: faceLoadProgress,
     loadStage: faceLoadStage,
     modelCacheHit,
     loadedBytes: faceLoadedBytes,
     totalBytes: faceTotalBytes,
-  } = useFaceLandmarker(videoRef, isActive, expressionSettings);
-  const calibration = faceMetrics.signal.calibration;
+  } = useFaceLandmarker(videoRef, isActive, expressionSettings, debugOpen);
   const handActions = useHandActions(
     videoRef,
-    isActive && faceStatus === 'running' && calibration.status === 'ready',
+    isActive && faceStatus === 'running' && guideStep >= 2,
+    isActive && faceStatus === 'running' && guideStep >= 1,
   );
-  const calibrationInstruction =
-    calibration.status === 'ready'
-      ? '个体表情模型已就绪'
-      : '正在后台适配当前人脸';
   const {
     state: interactionState,
     simulationMode,
@@ -124,8 +119,7 @@ export default function Home() {
     jawOpen: faceMetrics.signal.normalized.jawOpen,
     valid:
       faceMetrics.hasFace &&
-      faceMetrics.signal.accepted &&
-      calibration.status === 'ready',
+      faceMetrics.signal.accepted,
   });
   const {
     hostRef: effectsHostRef,
@@ -141,11 +135,7 @@ export default function Home() {
     faceLoadStage === 'ready',
   );
   const facePipelineStatus =
-    faceStatus === 'running' && calibration.status !== 'ready'
-      ? `个体校准 ${Math.round(calibration.progress * 100)}%`
-      : faceStatus === 'running' && calibration.status === 'ready'
-        ? '信号已标准化'
-        : faceStatusCopy[faceStatus];
+    faceStatus === 'running' ? '信号已标准化' : faceStatusCopy[faceStatus];
   const laughBlocker =
     simulationMode !== 'live'
       ? interactionDiagnostics.blocker
@@ -153,11 +143,9 @@ export default function Home() {
         ? '请先启动摄像头'
         : !faceMetrics.hasFace
           ? '未检测到人脸，请将脸移入框内'
-          : calibration.status !== 'ready'
-            ? calibrationInstruction
-            : !faceMetrics.signal.accepted
-              ? '人脸质量不足：请正对镜头并靠近一些'
-              : interactionDiagnostics.blocker;
+          : !faceMetrics.signal.accepted
+            ? '人脸质量不足：请正对镜头并靠近一些'
+            : interactionDiagnostics.blocker;
   const heartVisualActive = effectsMetrics.heart.phase !== 'idle';
   const recognizedGuide =
     heartVisualActive || handActions.metrics.heartActive
@@ -184,17 +172,13 @@ export default function Home() {
         ? 'FACE TRACKING IS UNAVAILABLE'
         : !faceMetrics.hasFace
           ? 'MOVE INTO FRAME'
-          : calibration.status !== 'ready'
-            ? 'ONE MOMENT…'
-            : !faceMetrics.signal.accepted
-              ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
-              : guideStep < 3
-                ? expressionGuides[guideStep as 0 | 1 | 2].instruction
-                : '';
+          : !faceMetrics.signal.accepted
+            ? 'FACE THE CAMERA AND MOVE A LITTLE CLOSER'
+            : guideStep < 3
+              ? expressionGuides[guideStep as 0 | 1 | 2].instruction
+              : '';
   const guideTone =
-    faceStatus === 'loading' || calibration.status !== 'ready'
-      ? 'preparing'
-      : interactionState;
+    faceStatus === 'loading' ? 'preparing' : interactionState;
   const coverWarmupCopy =
     faceLoadStage === 'ready'
       ? modelCacheHit
@@ -263,7 +247,7 @@ export default function Home() {
     {
       label: '表情识别',
       value: facePipelineStatus,
-      active: calibration.status === 'ready',
+      active: faceStatus === 'running' && faceMetrics.signal.accepted,
     },
     {
       label: '手势识别',
@@ -620,33 +604,9 @@ export default function Home() {
               <dt>平滑 Jaw</dt>
               <dd>{faceMetrics.signal.smoothed.jawOpen.toFixed(3)}</dd>
             </div>
-            <div>
-              <dt>基线 Smile</dt>
-              <dd>{calibration.baseline.smile.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>基线 Jaw</dt>
-              <dd>{calibration.baseline.jawOpen.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>个人峰值 Smile</dt>
-              <dd>{calibration.personalPeak.smile.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>个人峰值 Jaw</dt>
-              <dd>{calibration.personalPeak.jawOpen.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>有效范围 Smile</dt>
-              <dd>{calibration.effectiveRange.smile.toFixed(3)}</dd>
-            </div>
-            <div>
-              <dt>有效范围 Jaw</dt>
-              <dd>{calibration.effectiveRange.jawOpen.toFixed(3)}</dd>
-            </div>
           </dl>
           <p className="rain-help">
-            Smile 融合嘴角上扬、脸颊抬起与酒窝信号，并按个人峰值归一化
+            Smile 融合嘴角上扬、脸颊抬起与酒窝信号，使用统一范围直接归一化
           </p>
         </div>
         <div className="debug-section state-machine-section">
@@ -996,23 +956,6 @@ export default function Home() {
               ))}
             </ol>
           )}
-        </div>
-        <div className="debug-section calibration-section">
-          <div className="section-title-row">
-            <p className="debug-label">个体表情校准</p>
-            <button type="button" onClick={recalibrate} disabled={!isActive}>
-              重新校准
-            </button>
-          </div>
-          <span className="calibration-track" aria-hidden="true">
-            <span style={{ width: `${calibration.progress * 100}%` }} />
-          </span>
-          <p className="calibration-copy">
-            {calibrationInstruction}
-            {calibration.status === 'ready'
-              ? ` · ${calibration.sampleCount} 个基线样本`
-              : ''}
-          </p>
         </div>
         <div className="debug-section tuning-section">
           <p className="debug-label">信号调参</p>

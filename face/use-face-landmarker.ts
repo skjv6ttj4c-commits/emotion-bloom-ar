@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -235,6 +234,7 @@ export function useFaceLandmarker(
   videoRef: RefObject<HTMLVideoElement | null>,
   cameraActive: boolean,
   settings: ExpressionSettings = DEFAULT_EXPRESSION_SETTINGS,
+  drawDebugOverlay = false,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [processor] = useState(() => new ExpressionSignalProcessor(settings));
@@ -286,11 +286,6 @@ export function useFaceLandmarker(
     };
   }, []);
 
-  const recalibrate = useCallback(() => {
-    const signal = processor.reset();
-    setMetrics((current) => ({ ...current, signal }));
-  }, [processor]);
-
   useEffect(() => {
     if (!cameraActive) {
       processor.reset();
@@ -309,6 +304,13 @@ export function useFaceLandmarker(
     let lastVideoTime = -1;
     let lastHeadCollider = EMPTY_HEAD_COLLIDER;
     let faceMissingSince = 0;
+
+    if (!drawDebugOverlay) {
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext('2d');
+      if (canvas && context)
+        context.clearRect(0, 0, canvas.width, canvas.height);
+    }
 
     async function initialize() {
       setStatus(getFaceLoadSnapshot().stage === 'ready' ? 'ready' : 'loading');
@@ -364,7 +366,9 @@ export function useFaceLandmarker(
           } else {
             faceMissingSince = 0;
           }
-          const canvasSize = fitCanvasToDisplay(canvas);
+          const canvasSize = drawDebugOverlay
+            ? fitCanvasToDisplay(canvas)
+            : { width: canvas.clientWidth, height: canvas.clientHeight };
           const headCollider = createHeadCollider(
             result.faceLandmarks[0] ?? [],
             faceLandmarkerClass.FACE_LANDMARKS_FACE_OVAL,
@@ -382,13 +386,15 @@ export function useFaceLandmarker(
             headCollider,
           );
           lastHeadCollider = nextMetrics.headCollider;
-          drawFace(
-            canvas,
-            video,
-            faceLandmarkerClass,
-            result,
-            nextMetrics.headCollider,
-          );
+          if (drawDebugOverlay) {
+            drawFace(
+              canvas,
+              video,
+              faceLandmarkerClass,
+              result,
+              nextMetrics.headCollider,
+            );
+          }
           setMetrics(nextMetrics);
           setStatus('running');
         } catch (caughtError) {
@@ -407,14 +413,13 @@ export function useFaceLandmarker(
       cancelled = true;
       cancelAnimationFrame(animationFrame);
     };
-  }, [cameraActive, processor, videoRef]);
+  }, [cameraActive, drawDebugOverlay, processor, videoRef]);
 
   return {
     canvasRef,
     status: cameraActive ? status : 'idle',
     metrics: cameraActive ? metrics : emptyMetrics,
     error,
-    recalibrate,
     loadProgress,
     loadStage,
     modelCacheHit,
